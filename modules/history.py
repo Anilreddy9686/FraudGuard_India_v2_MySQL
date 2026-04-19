@@ -57,13 +57,28 @@ def history():
     except Exception as e:
         print("🔥 HISTORY ERROR:", e)
 
+        # 🔥 ADD: DEMO DATA (NEW LINES — OLD CODE NOT REMOVED)
+        demo_rows = [{
+            "id": 1,
+            "created_at": "2026-01-01 10:00",
+            "type": "TRANSFER",
+            "amount_inr": 5000,
+            "old_balance_orig": 10000,
+            "new_balance_orig": 5000,
+            "old_balance_dest": 2000,
+            "new_balance_dest": 7000,
+            "prediction": "Legitimate",
+            "risk_score": 10,
+            "confidence": 95
+        }]
+
         # 🔥 ADD: FALLBACK FOR NO-DB MODE
         return render_template(
             "history.html",
-            txns=[],
+            txns=demo_rows,   # 🔥 CHANGED from [] → demo_rows
             page=1,
             pages=1,
-            total=0,
+            total=1,
             filt="all",
             is_admin=False,
             demo_mode=True
