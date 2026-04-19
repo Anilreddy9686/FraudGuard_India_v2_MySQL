@@ -1,19 +1,23 @@
 """modules/export.py — CSV + HTML Report"""
-import csv, io
+import csv, io, os
 from datetime import datetime
-from flask import Blueprint, make_response, session
+from flask import Blueprint, make_response, session, flash, redirect, url_for
 from modules.security import login_required
 from modules.db import query, query_one
 
 export_bp = Blueprint("export", __name__)
 
+# 🔥 ADD: GLOBAL SAFE FLAG (AUTO MODE DETECTION)
+AUTO_DB = not os.environ.get("RENDER")
 
 @export_bp.route("/export/csv")
 @login_required
 def export_csv():
-
     # 🔥 ADD: SAFE WRAPPER (DO NOT REMOVE ORIGINAL CODE)
     try:
+        if not AUTO_DB:
+            raise Exception("Demo Mode: DB Disabled")
+
         uid      = session["user_id"]
         is_admin = session.get("role") == "admin"
         txns     = query("SELECT t.*,u.username FROM transactions t JOIN users u ON t.user_id=u.id ORDER BY t.created_at DESC") if is_admin else query("SELECT * FROM transactions WHERE user_id=%s ORDER BY created_at DESC", (uid,))
@@ -41,21 +45,23 @@ def export_csv():
 
     except Exception as e:
         print("🔥 EXPORT CSV ERROR:", e)
-
-        # 🔥 FALLBACK (NO DB MODE)
-        return "CSV export not available in demo mode", 200
+        # 🔥 FALLBACK (IMPROVED FOR UI)
+        flash("CSV Export not available in demo mode (No DB Connection)", "warning")
+        return redirect(url_for('predict.dashboard'))
 
 
 @export_bp.route("/export/report")
 @login_required
 def export_report():
-
     # 🔥 ADD: SAFE WRAPPER (DO NOT REMOVE ORIGINAL CODE)
     try:
+        if not AUTO_DB:
+            raise Exception("Demo Mode: DB Disabled")
+
         uid      = session["user_id"]
         is_admin = session.get("role") == "admin"
         txns     = query("SELECT t.*,u.username FROM transactions t JOIN users u ON t.user_id=u.id ORDER BY t.created_at DESC LIMIT 100") if is_admin else query("SELECT * FROM transactions WHERE user_id=%s ORDER BY created_at DESC LIMIT 100", (uid,))
-        stats    = query_one("SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions") if is_admin else query_one("SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions WHERE user_id=%s", (uid,))
+        stats    = query_one("SELECT COUNT(*) AS total, SUM(CASE WHEN prediction='Fraud' THEN 1 ELSE 0 END) AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions") if is_admin else query_one("SELECT COUNT(*) AS total, SUM(CASE WHEN prediction='Fraud' THEN 1 ELSE 0 END) AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions WHERE user_id=%s", (uid,))
 
         total  = int(stats["total"] or 0)
         frauds = int(stats["frauds"] or 0)
@@ -64,7 +70,7 @@ def export_report():
         rows   = ""
         for t in txns:
             col  = "#ef4444" if t["prediction"]=="Fraud" else "#22c55e"
-            uname = t.get("username", session["username"])
+            uname = t.get("username", session.get("username", "User"))
             rows += f"<tr><td>{t['id']}</td><td>{uname}</td><td>{str(t['created_at'])[:16]}</td><td>{t['type']}</td><td>₹{float(t['amount_inr'] or 0):,.2f}</td><td style='color:{col};font-weight:700'>{t['prediction']}</td><td>{t['risk_score']}/100</td></tr>"
 
         html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -81,7 +87,7 @@ td{{padding:7px 10px;border-bottom:1px solid #e5e7eb}}tr:nth-child(even){{backgr
 </style></head><body>
 <div class="tricolor"><span style="background:#FF9933"></span><span style="background:#fff;border:1px solid #ddd"></span><span style="background:#138808"></span></div>
 <h1>🛡️ Online Payment Fraud Detection — Report</h1>
-<div class="meta">Generated: {datetime.now().strftime('%d %B %Y, %H:%M IST')} | User: <strong>{session['username']}</strong> | Role: <strong>{session.get('role','user').title()}</strong></div>
+<div class="meta">Generated: {datetime.now().strftime('%d %B %Y, %H:%M IST')} | User: <strong>{session.get('username','User')}</strong> | Role: <strong>{session.get('role','user').title()}</strong></div>
 <div class="stats">
   <div class="stat"><h3>{total}</h3><p>Total Transactions</p></div>
   <div class="stat"><h3 style="color:#ef4444">{frauds}</h3><p>Fraud Detected</p></div>
@@ -101,6 +107,6 @@ td{{padding:7px 10px;border-bottom:1px solid #e5e7eb}}tr:nth-child(even){{backgr
 
     except Exception as e:
         print("🔥 EXPORT REPORT ERROR:", e)
-
-        # 🔥 FALLBACK (NO DB MODE)
-        return "Report not available in demo mode", 200
+        # 🔥 FALLBACK (IMPROVED FOR UI)
+        flash("HTML Report not available in demo mode (No DB Connection)", "warning")
+        return redirect(url_for('predict.dashboard'))
