@@ -1,8 +1,4 @@
-```python
 # 🔥 ADD: GLOBAL SAFE FLAG (AUTO MODE DETECTION)
-AUTO_DB = True
-
-"""modules/predict.py — Dashboard + Fraud Prediction + INR"""
 import os, pickle
 import numpy as np
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
@@ -10,6 +6,8 @@ from modules.security import login_required, validate_transaction_input, audit
 from modules.db import execute, query, query_one
 
 predict_bp = Blueprint("predict", __name__)
+
+AUTO_DB = True
 
 # 🔥 ADD: SAFE DB DETECTION
 try:
@@ -26,11 +24,14 @@ for _p in [
     os.path.join(os.path.dirname(__file__), "..", "..", "payments.pkl"),
 ]:
     try:
-        model = pickle.load(open(_p, "rb"))
-        print(f"✅ ML model loaded: {_p}")
-        break
-    except Exception:
-        pass
+        if os.path.exists(_p):
+            with open(_p, "rb") as f:
+                model = pickle.load(f)
+            print(f"✅ ML model loaded: {_p}")
+            break
+    except Exception as e:
+        print(f"❌ Model load error at {_p}: {e}")
+
 if not model:
     print("⚠️  ML model not found — rule-based fallback active")
 
@@ -70,77 +71,75 @@ def _risk_score(t_type, amount, old_orig, new_orig):
 @predict_bp.route("/dashboard")
 @login_required
 def dashboard():
-
     try:
-        uid   = session["user_id"]
+        uid = session.get("user_id", 1)
 
-        stats = query_one("""
-            SELECT COUNT(*) AS total, 
-                   SUM(prediction='Fraud') AS frauds,
-                   SUM(prediction='Legitimate') AS legit,
-                   COALESCE(SUM(amount_inr),0) AS total_amount
-            FROM transactions WHERE user_id=%s
-        """, (uid,)) if AUTO_DB else None
+        # Database Query Block
+        if AUTO_DB:
+            try:
+                stats = query_one("""
+                    SELECT COUNT(*) AS total, 
+                           SUM(CASE WHEN prediction='Fraud' THEN 1 ELSE 0 END) AS frauds,
+                           SUM(CASE WHEN prediction='Legitimate' THEN 1 ELSE 0 END) AS legit,
+                           COALESCE(SUM(amount_inr),0) AS total_amount
+                    FROM transactions WHERE user_id=%s
+                """, (uid,))
+                
+                recent = query("""
+                    SELECT * FROM transactions WHERE user_id=%s
+                    ORDER BY created_at DESC LIMIT 6
+                """, (uid,))
+                
+                unread_row = query_one(
+                    "SELECT COUNT(*) AS c FROM alerts WHERE user_id=%s AND is_read=0", (uid,)
+                )
+                unread = unread_row["c"] if unread_row else 0
+            except Exception as db_e:
+                print(f"❌ DB Fetch Error: {db_e}")
+                return render_demo_dashboard()
+        else:
+            return render_demo_dashboard()
 
-        recent = query("""
-            SELECT * FROM transactions WHERE user_id=%s
-            ORDER BY created_at DESC LIMIT 6
-        """, (uid,)) if AUTO_DB else []
-
-        unread_row = query_one(
-            "SELECT COUNT(*) AS c FROM alerts WHERE user_id=%s AND is_read=0", (uid,)
-        ) if AUTO_DB else {"c": 1}
-
-        unread = unread_row["c"] if unread_row else 0
-
-        print("📊 DASHBOARD:", stats, "Recent:", len(recent), "DB:", AUTO_DB)
-
-        # 🔥 AUTO UPDATE DEMO FALLBACK
-        if not recent:
-            stats = {
-                "total": 5,
-                "frauds": 1,
-                "legit": 4,
-                "total_amount": 25000
-            }
-
-            recent = [{
-                "id": 1,
-                "type": "TRANSFER",
-                "amount_inr": 5000,
-                "prediction": "Fraud",
-                "risk_score": 82,
-                "created_at": "2026-01-01 10:00"
-            }]
-
+        # If data exists, render normally
+        if recent:
             return render_template(
                 "dashboard.html",
                 stats=stats,
                 recent=recent,
-                alerts_count=1,
-                fmt_inr=fmt_inr,
-                demo_mode=True
+                alerts_count=unread,
+                fmt_inr=fmt_inr
             )
-
-        return render_template(
-            "dashboard.html",
-            stats=stats,
-            recent=recent,
-            alerts_count=unread,
-            fmt_inr=fmt_inr
-        )
+        else:
+            return render_demo_dashboard()
 
     except Exception as e:
-        print("🔥 DASHBOARD ERROR:", e)
+        print("🔥 DASHBOARD GLOBAL ERROR:", e)
+        return render_demo_dashboard()
 
-        return render_template(
-            "dashboard.html",
-            stats={"total": 10,"frauds": 2,"legit": 8,"total_amount": 50000},
-            recent=[{"id": 1, "type": "TRANSFER", "amount_inr": 5000}],
-            alerts_count=1,
-            fmt_inr=fmt_inr,
-            demo_mode=True
-        )
+def render_demo_dashboard():
+    """Helper to render demo UI when DB is unavailable or empty"""
+    stats = {
+        "total": 5,
+        "frauds": 1,
+        "legit": 4,
+        "total_amount": 25000
+    }
+    recent = [{
+        "id": 1,
+        "type": "TRANSFER",
+        "amount_inr": 5000,
+        "prediction": "Fraud",
+        "risk_score": 82,
+        "created_at": "2026-01-01 10:00"
+    }]
+    return render_template(
+        "dashboard.html",
+        stats=stats,
+        recent=recent,
+        alerts_count=1,
+        fmt_inr=fmt_inr,
+        demo_mode=True
+    )
 
 
 # ================= PREDICT =================
@@ -171,9 +170,13 @@ def predict():
         features = np.array([[step, t_type, amount, old_orig, new_orig, old_dest, new_dest]])
 
         if model:
-            pred_raw   = model.predict(features)[0]
-            result     = "Fraud" if pred_raw == 1 else "Legitimate"
-            confidence = 90.0
+            try:
+                pred_raw   = model.predict(features)[0]
+                result     = "Fraud" if pred_raw == 1 else "Legitimate"
+                confidence = 90.0
+            except:
+                result     = "Fraud" if risk > 60 else "Legitimate"
+                confidence = float(risk)
         else:
             result     = "Fraud" if risk > 60 else "Legitimate"
             confidence = float(risk)
@@ -181,21 +184,20 @@ def predict():
         # 🔥 AUTO SAVE + ALERT TRIGGER
         try:
             if AUTO_DB:
-                txn_id = execute("""INSERT INTO transactions
+                execute("""INSERT INTO transactions
                 (user_id,step,type,amount_inr,old_balance_orig,new_balance_orig,
                  old_balance_dest,new_balance_dest,prediction,confidence,risk_score,ip_address)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (session["user_id"], step, TXN_TYPES.get(t_type,str(t_type)),
+                """, (session.get("user_id", 1), step, TXN_TYPES.get(t_type,str(t_type)),
                       amount, old_orig, new_orig, old_dest, new_dest,
                       result, confidence, risk, request.remote_addr))
 
                 # 🔥 AUTO ALERT
                 if result == "Fraud":
                     execute("INSERT INTO alerts (user_id,message) VALUES (%s,%s)",
-                            (session["user_id"], f"Fraud detected ₹{amount}"))
+                            (session.get("user_id", 1), f"Fraud detected {fmt_inr(amount)}"))
 
                 print("✅ SAVED + ALERT")
-
             else:
                 print("⚠️ DEMO MODE → NOT SAVED")
 
@@ -211,4 +213,3 @@ def predict():
                                txn_id=1)
 
     return render_template("predict.html", txn_types=TXN_TYPES)
-```
