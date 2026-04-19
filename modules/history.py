@@ -2,6 +2,7 @@
 pass
 
 """modules/history.py — Transaction Logs & Audit Trail"""
+import os
 from flask import Blueprint, render_template, request, session
 from modules.security import login_required
 from modules.db import query, query_one
@@ -21,7 +22,7 @@ def history():
         offset   = (page - 1) * per_page
         filt     = request.args.get("filter", "all")
 
-        # Get session-based transactions for "Auto-Update" in Demo Mode
+        # 🔥 AUTO-UPDATE ENGINE: Get session-based transactions
         session_txns = session.get("demo_txns", [])
 
         conditions = [] if is_admin else [f"t.user_id={uid}"]
@@ -50,13 +51,13 @@ def history():
                 LIMIT %s OFFSET %s
             """, (per_page, offset))
 
-        # 🔥 AUTO-UPDATE LOGIC: Merge session transactions if DB is empty/Render mode
-        if not rows and session_txns:
+        # 🔥 AUTO-UPDATE LOGIC: Merge session transactions if DB is empty or in Render mode
+        if (not rows or os.environ.get("RENDER")) and session_txns:
             # Filter session data based on the selected filter
             if filt == "fraud":
-                rows = [t for t in session_txns if t['prediction'] == 'Fraud']
+                rows = [t for t in session_txns if t.get('prediction') == 'Fraud']
             elif filt == "legit":
-                rows = [t for t in session_txns if t['prediction'] == 'Legitimate']
+                rows = [t for t in session_txns if t.get('prediction') == 'Legitimate']
             else:
                 rows = session_txns
             
@@ -71,7 +72,8 @@ def history():
             pages=pages,
             total=total,
             filt=filt,
-            is_admin=is_admin
+            is_admin=is_admin,
+            demo_mode=os.environ.get("RENDER") is not None
         )
 
     except Exception as e:
