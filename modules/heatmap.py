@@ -49,6 +49,36 @@ def heatmap_data():
             (uid,)
         )
 
+        # 🔥🔥🔥 ADD THIS BLOCK (EMPTY DATA FIX)
+        if not rows:
+            print("⚠️ No transactions → loading demo heatmap data")
+
+            demo_states = []
+            for s in STATES[:10]:
+                c = COORDS[s]
+                demo_states.append({
+                    "state": s,
+                    "total": random.randint(5, 50),
+                    "frauds": random.randint(1, 20),
+                    "volume": random.randint(10000, 500000),
+                    "avg_risk": random.randint(20, 90),
+                    "fraud_rate": random.randint(5, 60),
+                    "lat": c[0],
+                    "lng": c[1]
+                })
+
+            return jsonify({
+                "states": demo_states,
+                "summary": {
+                    "total": 200,
+                    "frauds": 50,
+                    "volume": 1200000
+                },
+                "is_admin": is_admin,
+                "demo_mode": True
+            })
+        # 🔥🔥🔥 END ADD
+
         sd = {s:{"total":0,"frauds":0,"volume":0.0,"risk_sum":0} for s in STATES}
 
         for r in rows:
