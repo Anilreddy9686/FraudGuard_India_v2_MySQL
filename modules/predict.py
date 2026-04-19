@@ -58,23 +58,50 @@ def _risk_score(t_type, amount, old_orig, new_orig):
 @predict_bp.route("/dashboard")
 @login_required
 def dashboard():
-    uid   = session["user_id"]
-    stats = query_one("""
-        SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds,
-               SUM(prediction='Legitimate') AS legit,
-               COALESCE(SUM(amount_inr),0) AS total_amount
-        FROM transactions WHERE user_id=%s
-    """, (uid,))
-    recent = query("""
-        SELECT * FROM transactions WHERE user_id=%s
-        ORDER BY created_at DESC LIMIT 6
-    """, (uid,))
-    unread = query_one(
-        "SELECT COUNT(*) AS c FROM alerts WHERE user_id=%s AND is_read=0", (uid,)
-    )["c"]
-    return render_template("dashboard.html",
-                           stats=stats, recent=recent,
-                           alerts_count=unread, fmt_inr=fmt_inr)
+
+    # 🔥 ADD: SAFE WRAPPER (NO CHANGE TO OLD CODE)
+    try:
+        uid   = session["user_id"]
+
+        stats = query_one("""
+            SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds,
+                   SUM(prediction='Legitimate') AS legit,
+                   COALESCE(SUM(amount_inr),0) AS total_amount
+            FROM transactions WHERE user_id=%s
+        """, (uid,))
+
+        recent = query("""
+            SELECT * FROM transactions WHERE user_id=%s
+            ORDER BY created_at DESC LIMIT 6
+        """, (uid,))
+
+        unread_row = query_one(
+            "SELECT COUNT(*) AS c FROM alerts WHERE user_id=%s AND is_read=0", (uid,)
+        )
+
+        unread = unread_row["c"] if unread_row else 0
+
+        return render_template("dashboard.html",
+                               stats=stats, recent=recent,
+                               alerts_count=unread, fmt_inr=fmt_inr)
+
+    except Exception as e:
+        print("🔥 DASHBOARD ERROR:", e)
+
+        # 🔥 ADD: FALLBACK (DEMO MODE — NO DB)
+        return render_template(
+            "dashboard.html",
+            stats={
+                "total": 0,
+                "frauds": 0,
+                "legit": 0,
+                "total_amount": 0
+            },
+            recent=[],
+            alerts_count=0,
+            fmt_inr=fmt_inr,
+            demo_mode=True
+        )
 
 
 @predict_bp.route("/predict", methods=["GET", "POST"])
@@ -117,22 +144,30 @@ def predict():
         if result == "Fraud":
             risk = max(risk, 65)
 
-        txn_id = execute("""
-            INSERT INTO transactions
-              (user_id,step,type,amount_inr,old_balance_orig,new_balance_orig,
-               old_balance_dest,new_balance_dest,prediction,confidence,risk_score,ip_address)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (session["user_id"], step, TXN_TYPES.get(t_type,str(t_type)),
-              amount, old_orig, new_orig, old_dest, new_dest,
-              result, confidence, risk, request.remote_addr))
+        # 🔥 ADD: SAFE EXECUTE (NO CRASH IF DB FAILS)
+        try:
+            txn_id = execute("""
+                INSERT INTO transactions
+                  (user_id,step,type,amount_inr,old_balance_orig,new_balance_orig,
+                   old_balance_dest,new_balance_dest,prediction,confidence,risk_score,ip_address)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (session["user_id"], step, TXN_TYPES.get(t_type,str(t_type)),
+                  amount, old_orig, new_orig, old_dest, new_dest,
+                  result, confidence, risk, request.remote_addr))
+        except Exception as e:
+            print("⚠️ INSERT FAILED:", e)
+            txn_id = 0
 
-        if result == "Fraud" or risk > 70:
-            execute("""
-                INSERT INTO alerts (user_id,transaction_id,alert_type,message)
-                VALUES (%s,%s,%s,%s)
-            """, (session["user_id"], txn_id, "FRAUD_ALERT",
-                  f"⚠️ High-risk transaction: {fmt_inr(amount)} via "
-                  f"{TXN_TYPES.get(t_type,'?')} — Risk: {risk}/100"))
+        try:
+            if result == "Fraud" or risk > 70:
+                execute("""
+                    INSERT INTO alerts (user_id,transaction_id,alert_type,message)
+                    VALUES (%s,%s,%s,%s)
+                """, (session["user_id"], txn_id, "FRAUD_ALERT",
+                      f"⚠️ High-risk transaction: {fmt_inr(amount)} via "
+                      f"{TXN_TYPES.get(t_type,'?')} — Risk: {risk}/100"))
+        except Exception as e:
+            print("⚠️ ALERT INSERT FAILED:", e)
 
         audit(session["user_id"], "PREDICT",
               f"Txn #{txn_id} = {result} (risk {risk})")
