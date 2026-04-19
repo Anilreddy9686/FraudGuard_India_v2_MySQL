@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OTP Verification — OPFD</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:#060c16;min-height:100vh;display:flex;align-items:center;justify-content:center;background-image:radial-gradient(ellipse 600px 400px at 30% 30%,rgba(255,153,51,.08) 0%,transparent 60%)}
+.box{width:100%;max-width:400px;padding:42px 38px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:16px;text-align:center}
+.icon-circle{width:68px;height:68px;border-radius:50%;background:rgba(255,153,51,.12);border:2px solid rgba(255,153,51,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:28px}
+h2{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:7px}
+.sub{color:rgba(255,255,255,.4);font-size:13px;margin-bottom:26px;line-height:1.6}
+.otp-inputs{display:flex;gap:9px;justify-content:center;margin-bottom:22px}
+.otp-inputs input{width:48px;height:56px;text-align:center;font-size:22px;font-weight:700;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.12);border-radius:11px;color:#fff;font-family:inherit;outline:none;transition:all .18s}
+.otp-inputs input:focus{border-color:#FF9933;background:rgba(255,153,51,.08)}
+.btn{width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,#FF9933,#e67e00);color:#000;font-weight:700;font-size:14px;border:none;cursor:pointer;font-family:inherit}
+.btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(255,153,51,.3)}
+.resend{margin-top:14px;font-size:12px;color:rgba(255,255,255,.35)}.resend a{color:rgba(255,153,51,.8);text-decoration:none}
+.alert{padding:10px 13px;border-radius:9px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:8px}
+.a-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171}
+.a-info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:#60a5fa}
+.timer{font-size:12px;color:rgba(255,255,255,.3);margin-top:8px}
+#countdown{color:#fbbf24;font-weight:700}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="icon-circle">🔐</div>
+  <h2>2-Factor Verification</h2>
+  <div class="sub">Enter the 6-digit OTP sent to your registered email. Valid for <strong style="color:#FF9933">5 minutes</strong>.</div>
+  {% with msgs=get_flashed_messages(with_categories=true) %}{% if msgs %}{% for c,m in msgs %}
+  <div class="alert a-{{c}}"><i class="fas fa-info-circle"></i>{{m}}</div>
+  {% endfor %}{% endif %}{% endwith %}
+  <form method="POST" action="/otp-verify" id="otpForm">
+    <div class="otp-inputs">
+      <input type="text" maxlength="1" class="otp-digit" autocomplete="off" inputmode="numeric">
+      <input type="text" maxlength="1" class="otp-digit" autocomplete="off" inputmode="numeric">
+      <input type="text" maxlength="1" class="otp-digit" autocomplete="off" inputmode="numeric">
+      <input type="text" maxlength="1" class="otp-digit" autocomplete="off" inputmode="numeric">
+      <input type="text" maxlength="1" class="otp-digit" autocomplete="off" inputmode="numeric">
+      <input type="text" maxlength="1" class="otp-digit" autocomplete="off" inputmode="numeric">
+      <input type="hidden" name="otp_code" id="otp_hidden">
+    </div>
+    <button type="submit" class="btn">Verify OTP →</button>
+  </form>
+  <div class="timer">Expires in <span id="countdown">5:00</span></div>
+  <div class="resend">Didn't receive it? <a href="/otp-verify?resend=1">Resend OTP</a></div>
+</div>
+<script>
+const digits=document.querySelectorAll('.otp-digit');
+const hidden=document.getElementById('otp_hidden');
+digits.forEach((inp,i)=>{
+  inp.addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'');if(e.target.value&&i<digits.length-1)digits[i+1].focus();updateHidden()});
+  inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!e.target.value&&i>0)digits[i-1].focus()});
+  inp.addEventListener('paste',e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData('text').replace(/\D/g,'');t.split('').slice(0,6).forEach((ch,j)=>{if(digits[j])digits[j].value=ch});updateHidden();digits[Math.min(t.length,5)].focus()});
+});
+function updateHidden(){hidden.value=Array.from(digits).map(d=>d.value).join('')}
+document.getElementById('otpForm').addEventListener('submit',e=>{updateHidden();if(hidden.value.length!==6){e.preventDefault();alert('Enter all 6 digits.')}});
+let s=300;const cd=document.getElementById('countdown');
+const iv=setInterval(()=>{s--;if(s<=0){clearInterval(iv);cd.textContent='Expired';cd.style.color='#f87171';return}const m=Math.floor(s/60),sec=s%60;cd.textContent=m+':'+(sec<10?'0':'')+sec;if(s<=60)cd.style.color='#f87171'},1000);
+digits[0].focus();
+</script>
+</body></html>

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Settings — OPFD{% endblock %}
+{% block extra_css %}
+.sec-row{display:flex;align-items:flex-start;justify-content:space-between;padding:15px 0;border-bottom:1px solid rgba(255,255,255,.04);gap:22px;flex-wrap:wrap}
+.sec-row:last-child{border:none}
+.sec-label{flex:1;min-width:200px}
+.sec-label strong{font-size:13px;font-weight:600;display:block;margin-bottom:3px}
+.sec-label span{font-size:11px;color:var(--muted);line-height:1.5}
+.sec-control{min-width:260px;flex-shrink:0}
+.sec-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:16px;padding-bottom:9px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:8px;font-size:11px;font-weight:600}
+.pill.green{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.pill.orange{background:rgba(255,153,51,.12);color:var(--saffron);border:1px solid rgba(255,153,51,.25)}
+.pill.red{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><div class="ptitle">⚙️ System Settings</div><div class="psub">Configure Online Payment Fraud Detection</div></div>
+</div>
+
+<!-- System status -->
+<div class="sg" style="margin-bottom:24px">
+  <div class="sc sf"><div class="sc-lbl">Developer</div><div class="sc-val" style="font-size:16px">ANILREDDY</div><div class="sc-icon">👨‍💻</div></div>
+  <div class="sc sg2"><div class="sc-lbl">Database</div><div class="sc-val" style="font-size:15px;color:#4ade80">MySQL ✅</div><div class="sc-icon">🗄️</div></div>
+  <div class="sc sb"><div class="sc-lbl">ML Model</div><div class="sc-val" style="font-size:15px;color:#60a5fa">Active ✅</div><div class="sc-icon">🧠</div></div>
+  <div class="sc sr"><div class="sc-lbl">Session Timeout</div><div class="sc-val" style="font-size:17px">30 min</div><div class="sc-icon">⏱️</div></div>
+</div>
+
+<form method="POST" action="/settings">
+<div class="card" style="margin-bottom:18px">
+
+  <!-- General -->
+  <div class="sec-title"><span>🏷️</span> General</div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Application Name</strong><span>Shown throughout the interface and reports</span></div>
+    <div class="sec-control"><input class="fc" name="app_name" value="{{ cfg.get('app_name','Online Payment Fraud Detection') }}" required></div>
+  </div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Alert Email</strong><span>System alerts sent to this address</span></div>
+    <div class="sec-control"><input class="fc" type="email" name="alert_email" value="{{ cfg.get('alert_email','anilreddy@opfd.in') }}"></div>
+  </div>
+
+  <!-- Fraud Detection -->
+  <div class="sec-title" style="margin-top:20px"><span>🎯</span> Fraud Detection</div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Fraud Risk Threshold (0–100)</strong><span>Transactions with risk ≥ this value are flagged</span></div>
+    <div class="sec-control">
+      <input class="fc" type="number" name="fraud_threshold" value="{{ cfg.get('fraud_threshold','60') }}" min="0" max="100">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Current: <strong style="color:var(--saffron)">{{ cfg.get('fraud_threshold','60') }}/100</strong> — Lower = more sensitive</div>
+    </div>
+  </div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Max Amount Alert (₹)</strong><span>Flag any transaction above this INR amount</span></div>
+    <div class="sec-control">
+      <div style="position:relative"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--saffron);font-weight:700">₹</span>
+      <input class="fc" type="number" name="max_amount_alert" style="padding-left:28px" value="{{ cfg.get('max_amount_alert','5000000') }}" min="0"></div>
+    </div>
+  </div>
+
+  <!-- Security -->
+  <div class="sec-title" style="margin-top:20px"><span>🔐</span> Security</div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Force OTP for All Users</strong><span>Every user must verify OTP on login regardless of personal setting</span></div>
+    <div class="sec-control">
+      <select class="fc" name="otp_required">
+        <option value="0" {% if cfg.get('otp_required','0')=='0' %}selected{% endif %}>🔓 Optional (users choose)</option>
+        <option value="1" {% if cfg.get('otp_required','0')=='1' %}selected{% endif %}>🔐 Required for everyone</option>
+      </select>
+      <div style="margin-top:7px">{% if cfg.get('otp_required','0')=='1' %}<span class="pill red"><i class="fas fa-lock"></i> OTP enforced system-wide</span>{% else %}<span class="pill green"><i class="fas fa-unlock"></i> OTP optional per user</span>{% endif %}</div>
+    </div>
+  </div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Max Login Attempts</strong><span>Account locked after this many failed attempts</span></div>
+    <div class="sec-control">
+      <input class="fc" type="number" name="max_login_attempts" value="{{ cfg.get('max_login_attempts','5') }}" min="1" max="20">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Current: <strong style="color:var(--saffron)">{{ cfg.get('max_login_attempts','5') }} attempts</strong></div>
+    </div>
+  </div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Lockout Duration (minutes)</strong><span>How long a locked account stays locked</span></div>
+    <div class="sec-control">
+      <input class="fc" type="number" name="lockout_minutes" value="{{ cfg.get('lockout_minutes','15') }}" min="1" max="1440">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Current: <strong style="color:var(--saffron)">{{ cfg.get('lockout_minutes','15') }} minutes</strong></div>
+    </div>
+  </div>
+
+  <!-- Save -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding-top:16px;border-top:1px solid var(--border);margin-top:16px;flex-wrap:wrap;gap:12px">
+    <div style="font-size:12px;color:var(--muted)"><i class="fas fa-info-circle"></i> Changes take effect immediately after saving.</div>
+    <div style="display:flex;gap:9px">
+      <a href="/dashboard" class="btn btn-o">Cancel</a>
+      <button type="submit" class="btn btn-p"><i class="fas fa-save"></i> Save Settings</button>
+    </div>
+  </div>
+
+</div>
+</form>
+
+<!-- Danger zone -->
+<div class="card" style="border-color:rgba(239,68,68,.2)">
+  <div class="sec-title" style="color:#f87171;border-bottom-color:rgba(239,68,68,.15)"><span>⚠️</span> Danger Zone</div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>Export All Data</strong><span>Full CSV of all transactions</span></div>
+    <a href="/export/csv" class="btn btn-o"><i class="fas fa-file-csv"></i> Export CSV</a>
+  </div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>System Report</strong><span>Full HTML audit report for all users</span></div>
+    <a href="/export/report" class="btn btn-o"><i class="fas fa-file-alt"></i> Download Report</a>
+  </div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>IP Blacklist</strong><span>Block suspicious IP addresses</span></div>
+    <a href="/admin/" class="btn btn-d"><i class="fas fa-ban"></i> Manage IPs</a>
+  </div>
+  <div class="sec-row">
+    <div class="sec-label"><strong>User Management</strong><span>View, delete or manage all users</span></div>
+    <a href="/users" class="btn btn-d"><i class="fas fa-users"></i> Manage Users</a>
+  </div>
+</div>
+{% endblock %}

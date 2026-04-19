@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Receipt #{{ txn.id }} — OPFD{% endblock %}
+{% block extra_css %}
+.receipt-wrap{max-width:540px;margin:0 auto}
+.receipt{background:#fff;color:#111;border-radius:14px;overflow:hidden}
+.receipt-header{background:linear-gradient(135deg,#060c16,#111e30);color:#fff;padding:26px 30px;text-align:center}
+.receipt-logo{font-size:13px;font-weight:800;margin-bottom:3px;background:linear-gradient(120deg,#FF9933,#ffd480);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.receipt-id{font-size:11px;color:rgba(255,255,255,.4);margin-top:3px}
+.receipt-amount{font-size:32px;font-weight:800;margin:12px 0 3px;color:#fff}
+.receipt-body{padding:24px 28px}
+.receipt-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.receipt-row:last-child{border:none}
+.receipt-key{color:#888;font-size:12px}
+.receipt-val{font-weight:600;color:#111;text-align:right}
+.receipt-footer{background:#f9f9f9;padding:15px 28px;text-align:center;font-size:11px;color:#aaa;border-top:1px solid #eee}
+.verdict{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-weight:800;font-size:14px;margin:0 auto;justify-content:center}
+.verdict.fraud{background:#fef2f2;color:#dc2626;border:2px solid #fca5a5}
+.verdict.legit{background:#f0fdf4;color:#16a34a;border:2px solid #86efac}
+.btn-row{display:flex;gap:9px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+@media print{.main{margin-left:0!important}.sb{display:none!important}.btn-row{display:none!important}body{background:#fff!important}}
+{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><div class="ptitle">🧾 Transaction Receipt</div><div class="psub">Receipt #{{ txn.id }}</div></div>
+  <div class="topbar-right"><a href="/history" class="btn btn-o btn-sm">← Back</a></div>
+</div>
+<div class="receipt-wrap">
+<div class="receipt">
+  <div class="receipt-header">
+    <div class="receipt-logo">🛡️ Online Payment Fraud Detection</div>
+    <div class="receipt-id">Receipt #{{ txn.id }} &nbsp;|&nbsp; {{ txn.created_at|string|truncate(16,true,'') }} IST</div>
+    <div class="receipt-amount">₹{{ "{:,.2f}".format(txn.amount_inr|float) }}</div>
+    <div class="verdict {{ 'fraud' if txn.prediction=='Fraud' else 'legit' }}">{{ '⚠️ FRAUD DETECTED' if txn.prediction=='Fraud' else '✅ LEGITIMATE' }}</div>
+  </div>
+  <div class="receipt-body">
+    <div class="receipt-row"><span class="receipt-key">Transaction ID</span><span class="receipt-val">#{{ txn.id }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Date & Time</span><span class="receipt-val">{{ txn.created_at|string|truncate(19,true,'') }} IST</span></div>
+    <div class="receipt-row"><span class="receipt-key">Account Holder</span><span class="receipt-val">{{ txn.full_name or txn.username }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Transaction Type</span><span class="receipt-val">{{ txn.type }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Amount</span><span class="receipt-val" style="font-size:15px;color:#FF9933">₹{{ "{:,.2f}".format(txn.amount_inr|float) }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Sender Balance Before</span><span class="receipt-val">₹{{ "{:,.2f}".format(txn.old_balance_orig|float) }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Sender Balance After</span><span class="receipt-val">₹{{ "{:,.2f}".format(txn.new_balance_orig|float) }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Receiver Balance Before</span><span class="receipt-val">₹{{ "{:,.2f}".format(txn.old_balance_dest|float) }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Receiver Balance After</span><span class="receipt-val">₹{{ "{:,.2f}".format(txn.new_balance_dest|float) }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Fraud Result</span><span class="receipt-val" style="color:{{ '#dc2626' if txn.prediction=='Fraud' else '#16a34a' }}">{{ txn.prediction }}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Risk Score</span><span class="receipt-val" style="color:{{ '#dc2626' if (txn.risk_score or 0)>70 else '#f59e0b' if (txn.risk_score or 0)>40 else '#16a34a' }}">{{ txn.risk_score or 0 }} / 100</span></div>
+    <div class="receipt-row"><span class="receipt-key">Model Confidence</span><span class="receipt-val">{{ txn.confidence or 0 }}%</span></div>
+    <div class="receipt-row"><span class="receipt-key">Checked By</span><span class="receipt-val">{{ txn.username }}</span></div>
+  </div>
+  <div class="receipt-footer">
+    Online Payment Fraud Detection &nbsp;•&nbsp; Developed by <strong>ANILREDDY</strong> &nbsp;|&nbsp; 📞 9686809509<br>
+    <strong>RBI: 1800-111-109 &nbsp;|&nbsp; cybercrime.gov.in</strong>
+  </div>
+</div>
+<div class="btn-row">
+  <button onclick="window.print()" class="btn btn-p"><i class="fas fa-print"></i> Print</button>
+  <button onclick="navigator.clipboard.writeText(window.location.href).then(()=>alert('Link copied!'))" class="btn btn-o"><i class="fas fa-link"></i> Copy Link</button>
+  <a href="/receipt/{{ txn.id }}/json" target="_blank" class="btn btn-o"><i class="fas fa-code"></i> JSON</a>
+  <a href="/history" class="btn btn-o">← History</a>
+</div>
+</div>
+{% endblock %}

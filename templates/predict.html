@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Check Transaction — OPFD{% endblock %}
+{% block extra_css %}
+.tip{background:rgba(255,153,51,.07);border:1px solid rgba(255,153,51,.2);border-radius:10px;padding:13px 16px;margin-bottom:20px;font-size:12px}
+.tip strong{color:var(--saffron)}
+.rupee-wrap{position:relative}.rupee-wrap .sym{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--saffron);font-weight:800;font-size:14px}
+.rupee-wrap .fc{padding-left:28px}
+.hint{font-size:11px;color:var(--muted);margin-top:3px}
+{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><div class="ptitle">🔍 Check Transaction</div><div class="psub">Analyse an Indian payment transaction for fraud in real-time</div></div>
+</div>
+<div class="card" style="max-width:660px">
+  <div class="tip"><strong>💡 Detects:</strong> UPI fraud · NEFT/RTGS laundering · Hawala transfers · Cash-out scams · Balance mismatches · 7 Indian fraud rules</div>
+  <form method="POST" action="/predict">
+    <div class="g2">
+      <div class="fg"><label class="fl">Step (Hours)</label><input class="fc" type="number" name="step" placeholder="1–744" min="1" max="744" required><div class="hint">1 step = 1 hour</div></div>
+      <div class="fg"><label class="fl">Transaction Type</label><select name="type" class="fc" required><option value="">— Select —</option>{% for k,v in txn_types.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="fg"><label class="fl">Amount (₹ INR)</label><div class="rupee-wrap"><span class="sym">₹</span><input class="fc" type="number" name="amount" placeholder="e.g. 50000" min="1" step="0.01" required></div><div class="hint">₹1 L = 1,00,000 &nbsp;|&nbsp; ₹1 Cr = 1,00,00,000</div></div>
+    <div class="g2">
+      <div class="fg"><label class="fl">Sender Balance Before (₹)</label><input class="fc" type="number" name="oldbalanceOrg" placeholder="e.g. 200000" min="0" step="0.01" required></div>
+      <div class="fg"><label class="fl">Sender Balance After (₹)</label><input class="fc" type="number" name="newbalanceOrig" placeholder="e.g. 150000" min="0" step="0.01" required></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label class="fl">Receiver Balance Before (₹)</label><input class="fc" type="number" name="oldbalanceDest" placeholder="e.g. 10000" min="0" step="0.01" required></div>
+      <div class="fg"><label class="fl">Receiver Balance After (₹)</label><input class="fc" type="number" name="newbalanceDest" placeholder="e.g. 60000" min="0" step="0.01" required></div>
+    </div>
+    <button type="submit" class="btn btn-p" style="width:100%;padding:13px;font-size:14px;border-radius:11px;justify-content:center"><i class="fas fa-search-dollar"></i> &nbsp;Analyse Transaction</button>
+  </form>
+</div>
+{% endblock %}

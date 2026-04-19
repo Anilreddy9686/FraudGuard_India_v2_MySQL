@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Register — OPFD</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:#060c16;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background-image:radial-gradient(ellipse 600px 400px at 20% 20%,rgba(255,153,51,.07) 0%,transparent 60%),
+radial-gradient(ellipse 500px 350px at 80% 80%,rgba(19,136,8,.05) 0%,transparent 60%);}
+.box{width:100%;max-width:520px;padding:38px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:16px}
+.logo{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;background:linear-gradient(120deg,#FF9933,#ffd480);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+h2{color:#fff;font-family:'Syne',sans-serif;font-size:20px;margin:12px 0 2px}.sub{color:rgba(255,255,255,.38);font-size:12px;margin-bottom:20px}
+.tabs{display:flex;gap:4px;background:rgba(255,255,255,.05);border-radius:10px;padding:4px;margin-bottom:20px}
+.tab{flex:1;padding:8px;text-align:center;border-radius:8px;font-size:12px;font-weight:600;color:rgba(255,255,255,.4);text-decoration:none;transition:all .18s}
+.tab.on{background:#FF9933;color:#000}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fg{margin-bottom:12px}
+label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:4px}
+.ii{position:relative}.ii i{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.25);font-size:12px}
+input{width:100%;padding:10px 11px 10px 33px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);color:#fff;font-size:13px;font-family:inherit;outline:none;transition:all .18s}
+input:focus{border-color:#FF9933;background:rgba(255,153,51,.05)}
+.btn{width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,#FF9933,#e67e00);color:#000;font-weight:700;font-size:13px;border:none;cursor:pointer;transition:all .2s;font-family:inherit}
+.btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(255,153,51,.3)}
+.alert{padding:9px 12px;border-radius:9px;margin-bottom:11px;font-size:12px;display:flex;align-items:center;gap:7px}
+.a-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171}
+.a-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:#4ade80}
+.pw-rules{font-size:11px;color:rgba(255,255,255,.3);margin-top:4px}
+@media(max-width:540px){.g2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">🛡️ Online Payment Fraud Detection</div>
+  <h2>Create Account</h2>
+  <div class="sub">Developed by ANILREDDY | 9686809509</div>
+  <div class="tabs"><a href="/login" class="tab">Sign In</a><a href="/register" class="tab on">Register</a></div>
+  {% with msgs=get_flashed_messages(with_categories=true) %}{% if msgs %}{% for c,m in msgs %}
+  <div class="alert a-{{c}}"><i class="fas fa-info-circle"></i>{{m}}</div>
+  {% endfor %}{% endif %}{% endwith %}
+  <form method="POST" action="/register">
+    <div class="g2">
+      <div class="fg"><label>Full Name</label><div class="ii"><i class="fas fa-id-card"></i><input name="full_name" placeholder="ANILREDDY"></div></div>
+      <div class="fg"><label>Mobile (India)</label><div class="ii"><i class="fas fa-mobile-alt"></i><input name="mobile" placeholder="9686809509" pattern="[6-9][0-9]{9}"></div></div>
+    </div>
+    <div class="fg"><label>Username *</label><div class="ii"><i class="fas fa-user"></i><input name="username" placeholder="min 4 chars, letters/numbers" required minlength="4"></div></div>
+    <div class="fg"><label>Email *</label><div class="ii"><i class="fas fa-envelope"></i><input type="email" name="email" placeholder="anilreddy@email.in" required></div></div>
+    <div class="g2">
+      <div class="fg"><label>Password *</label><div class="ii"><i class="fas fa-lock"></i><input type="password" name="password" placeholder="Min 8 chars" required minlength="8"></div></div>
+      <div class="fg"><label>Confirm *</label><div class="ii"><i class="fas fa-lock"></i><input type="password" name="confirm_password" placeholder="Confirm password" required></div></div>
+    </div>
+    <div class="pw-rules">Password must have: 8+ chars, 1 uppercase, 1 number</div>
+    <br>
+    <button type="submit" class="btn">Create Account →</button>
+  </form>
+</div>
+</body></html>

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Alerts — OPFD{% endblock %}
+{% block extra_css %}
+.alert-card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:16px 18px;margin-bottom:10px;display:flex;align-items:flex-start;gap:14px;transition:border-color .18s}
+.alert-card.unread{border-left:3px solid var(--danger)}
+.alert-card.read{opacity:.6}
+.alert-icon{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px}
+.alert-icon.fraud{background:rgba(239,68,68,.15)}
+.alert-icon.info{background:rgba(59,130,246,.15)}
+.alert-body{flex:1}
+.alert-msg{font-size:13px;line-height:1.6;color:var(--text)}
+.alert-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+{% endblock %}
+{% block content %}
+<div class="topbar"><div><div class="ptitle">🔔 Alerts</div><div class="psub">Real-time fraud notifications</div></div></div>
+{% if alerts %}
+{% for a in alerts %}
+<div class="alert-card {{ 'unread' if not a.is_read else 'read' }}">
+  <div class="alert-icon {{ 'fraud' if 'FRAUD' in (a.alert_type or '') else 'info' }}">{{ '⚠️' if 'FRAUD' in (a.alert_type or '') else 'ℹ️' }}</div>
+  <div class="alert-body">
+    <div class="alert-msg">{{ a.message }}</div>
+    <div class="alert-meta">
+      <span><i class="fas fa-clock"></i> {{ a.created_at|string|truncate(16,true,'') }}</span>
+      {% if a.alert_type %}<span><i class="fas fa-tag"></i> {{ a.alert_type }}</span>{% endif %}
+      {% if a.transaction_id %}<span><i class="fas fa-hashtag"></i> Txn #{{ a.transaction_id }}</span>{% endif %}
+      {% if a.amount_inr %}<span><i class="fas fa-rupee-sign"></i> ₹{{ "{:,.0f}".format(a.amount_inr|float) }}</span>{% endif %}
+      {% if not a.is_read %}<span style="color:var(--danger);font-weight:700"><i class="fas fa-circle" style="font-size:7px"></i> New</span>{% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card" style="text-align:center;padding:56px 28px">
+  <div style="font-size:52px;margin-bottom:14px">🔕</div>
+  <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:7px">No Alerts</div>
+  <div style="color:var(--muted);font-size:13px">Alerts appear here when high-risk transactions are detected.</div>
+  <a href="/predict" class="btn btn-p" style="margin-top:18px;display:inline-flex"><i class="fas fa-search-dollar"></i> Check a Transaction</a>
+</div>
+{% endif %}
+{% endblock %}

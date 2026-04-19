@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Search — OPFD{% endblock %}
+{% block extra_css %}
+.sf{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.sf-full{grid-column:1/-1}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--border);color:var(--muted);transition:all .18s;background:transparent}
+.tag:hover,.tag.on{background:rgba(255,153,51,.12);border-color:rgba(255,153,51,.4);color:var(--saffron)}
+.tag.fraud-tag.on{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.4);color:#f87171}
+.tag.legit-tag.on{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.4);color:#4ade80}
+.spin{animation:spin 1s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+{% endblock %}
+{% block content %}
+<div class="topbar"><div><div class="ptitle">🔍 Search & Filter</div><div class="psub">Find any transaction instantly</div></div></div>
+<div class="card" style="margin-bottom:18px">
+  <div class="sf">
+    <div class="fg sf-full" style="position:relative"><label class="fl">Search</label>
+      <span style="position:absolute;left:12px;top:38px;color:var(--muted);font-size:13px"><i class="fas fa-search"></i></span>
+      <input id="f-q" class="fc" style="padding-left:34px" placeholder="Type, keyword…" autocomplete="off">
+    </div>
+    <div class="fg"><label class="fl">Type</label><select id="f-type" class="fc"><option value="">All Types</option>{% for t in txn_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+    <div class="fg"><label class="fl">Result</label><select id="f-pred" class="fc"><option value="">All</option><option value="Fraud">⚠️ Fraud</option><option value="Legitimate">✅ Legitimate</option></select></div>
+    <div class="fg"><label class="fl">Date From</label><input id="f-date-from" type="date" class="fc"></div>
+    <div class="fg"><label class="fl">Date To</label><input id="f-date-to" type="date" class="fc"></div>
+    <div class="fg"><label class="fl">Amount Min (₹)</label><input id="f-amt-min" type="number" class="fc" placeholder="0" min="0"></div>
+    <div class="fg"><label class="fl">Amount Max (₹)</label><input id="f-amt-max" type="number" class="fc" placeholder="max" min="0"></div>
+    <div class="fg"><label class="fl">Risk Min</label><input id="f-risk-min" type="number" class="fc" placeholder="0" min="0" max="100"></div>
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap">
+    <button onclick="runSearch(1)" class="btn btn-p btn-sm"><i class="fas fa-search"></i> Search</button>
+    <button onclick="clearFilters()" class="btn btn-o btn-sm">Clear</button>
+    <span class="tag" onclick="quickFilter('Fraud',this)">⚠️ Fraud Only</span>
+    <span class="tag" onclick="quickFilter('Legitimate',this)">✅ Legit Only</span>
+    <span class="tag" onclick="quickHighRisk(this)">🔴 High Risk >70</span>
+  </div>
+</div>
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+    <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700">Results <span id="result-count" style="color:var(--muted);font-size:12px;font-weight:400"></span></div>
+    <span id="loading" style="color:var(--muted);font-size:12px;display:none"><i class="fas fa-circle-notch spin"></i> Searching…</span>
+  </div>
+  <div class="tw"><table id="result-table">
+    <thead><tr><th>#</th>{% if is_admin %}<th>User</th>{% endif %}<th>Date</th><th>Type</th><th>Amount (₹)</th><th>Result</th><th>Risk</th><th>Action</th></tr></thead>
+    <tbody id="result-body"><tr><td colspan="{% if is_admin %}8{% else %}7{% endif %}" style="text-align:center;padding:36px;color:var(--muted)">Use filters above and click Search.</td></tr></tbody>
+  </table></div>
+  <div id="pagination" style="display:flex;gap:5px;justify-content:center;margin-top:16px;flex-wrap:wrap"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const IS_ADMIN={{ 'true' if is_admin else 'false' }};
+function getParams(page=1){return new URLSearchParams({q:document.getElementById('f-q').value,type:document.getElementById('f-type').value,prediction:document.getElementById('f-pred').value,date_from:document.getElementById('f-date-from').value,date_to:document.getElementById('f-date-to').value,amt_min:document.getElementById('f-amt-min').value,amt_max:document.getElementById('f-amt-max').value,risk_min:document.getElementById('f-risk-min').value,page})}
+async function runSearch(page=1){document.getElementById('loading').style.display='inline';
+try{const r=await fetch('/search/results?'+getParams(page));const d=await r.json();renderResults(d)}catch(e){}
+document.getElementById('loading').style.display='none'}
+function renderResults(d){
+const body=document.getElementById('result-body');const cnt=document.getElementById('result-count');const pg=document.getElementById('pagination');
+const cols=IS_ADMIN?8:7;cnt.textContent=`— ${d.total} record${d.total!==1?'s':''}`;
+if(!d.rows.length){body.innerHTML=`<tr><td colspan="${cols}" style="text-align:center;padding:36px;color:var(--muted)">No results.</td></tr>`;pg.innerHTML='';return}
+body.innerHTML=d.rows.map(t=>{
+const pred=t.prediction==='Fraud'?`<span class="bfraud">⚠️ Fraud</span>`:`<span class="blegit">✅ Legit</span>`;
+const rc=t.risk_score>70?'#f87171':t.risk_score>40?'#fbbf24':'#4ade80';
+const uc=IS_ADMIN?`<td style="color:var(--saffron);font-size:11px">${t.username||''}</td>`:'';
+return `<tr><td style="color:var(--muted);font-size:11px">#${t.id}</td>${uc}<td style="font-size:11px;color:var(--muted)">${(t.created_at||'').slice(0,16)}</td><td><span style="background:rgba(255,153,51,.1);color:#FF9933;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700">${t.type}</span></td><td style="font-weight:700">₹${Number(t.amount_inr||0).toLocaleString('en-IN',{minimumFractionDigits:0})}</td><td>${pred}</td><td style="font-size:11px;color:${rc}">${t.risk_score||0}/100</td><td><a href="/receipt/${t.id}" class="btn btn-o btn-sm"><i class="fas fa-receipt"></i></a></td></tr>`;}).join('');
+pg.innerHTML='';if(d.pages>1){for(let p=1;p<=d.pages;p++){if(p===1||p===d.pages||Math.abs(p-d.page)<=2){const a=document.createElement('a');a.href='#';a.textContent=p;a.style.cssText=`padding:5px 11px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--border);color:var(--muted);transition:all .18s`;if(p===d.page)a.style.cssText+=';background:#FF9933;color:#000;border-color:#FF9933';a.onclick=e=>{e.preventDefault();runSearch(p)};pg.appendChild(a)}}}}
+function quickFilter(pred,el){document.getElementById('f-pred').value=pred;document.querySelectorAll('.tag').forEach(t=>t.classList.remove('on'));el.classList.add('on');runSearch(1)}
+function quickHighRisk(el){document.getElementById('f-risk-min').value=71;document.querySelectorAll('.tag').forEach(t=>t.classList.remove('on'));el.classList.add('on');runSearch(1)}
+function clearFilters(){['f-q','f-type','f-pred','f-date-from','f-date-to','f-amt-min','f-amt-max','f-risk-min'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});document.querySelectorAll('.tag').forEach(t=>t.classList.remove('on'))}
+document.getElementById('f-q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch(1)});
+</script>
+{% endblock %}

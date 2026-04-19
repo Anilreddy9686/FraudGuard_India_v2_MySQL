@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Analytics — OPFD{% endblock %}
+{% block extra_css %}
+.ag{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+canvas{max-height:240px}
+.type-row{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--border)}
+.type-row:last-child{border:none}
+.type-name{width:90px;font-size:12px;font-weight:600;color:var(--saffron)}
+.type-bar-wrap{flex:1}.type-bar{height:7px;border-radius:4px;background:var(--saffron);opacity:.85}
+{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><div class="ptitle">📊 Analytics</div><div class="psub">{% if is_admin %}System-wide analytics{% else %}Your personal analytics{% endif %}</div></div>
+  <div class="topbar-right"><a href="/export/report" class="btn btn-o btn-sm"><i class="fas fa-file-alt"></i> Report</a></div>
+</div>
+<div class="ag">
+  <div class="card"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:15px">📅 Monthly Trend</div><canvas id="monthChart"></canvas></div>
+  <div class="card"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:15px">🎯 Risk Distribution</div><canvas id="riskChart"></canvas></div>
+</div>
+<div class="card" style="margin-bottom:18px">
+  <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:15px">💳 Transactions by Type</div>
+  {% if by_type %}{% set max_total=by_type|map(attribute='total')|max %}
+  {% for r in by_type %}
+  <div class="type-row">
+    <div class="type-name">{{ r.type }}</div>
+    <div class="type-bar-wrap"><div class="type-bar" style="width:{{ (r.total/max_total*100)|int }}%"></div></div>
+    <div style="font-size:11px;color:var(--muted);width:40px;text-align:right">{{ r.total }}</div>
+    <div style="width:70px;text-align:right">{% if r.frauds %}<span class="bfraud" style="font-size:10px">{{ r.frauds }} fraud</span>{% else %}<span class="blegit" style="font-size:10px">0 fraud</span>{% endif %}</div>
+    <div style="font-size:11px;color:var(--muted);width:100px;text-align:right">Avg ₹{{ "{:,.0f}".format(r.avg_amount|float) }}</div>
+  </div>
+  {% endfor %}{% else %}<div style="text-align:center;padding:28px;color:var(--muted)">No data yet.</div>{% endif %}
+</div>
+{% if is_admin and top_users %}
+<div class="card">
+  <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:15px">👥 Top Users by Fraud Activity</div>
+  <div class="tw"><table>
+    <thead><tr><th>Username</th><th>Txns</th><th>Frauds</th><th>Fraud Rate</th><th>Volume (₹)</th></tr></thead>
+    <tbody>{% for u in top_users %}<tr>
+      <td style="font-weight:600;color:var(--saffron)">{{ u.username }}</td>
+      <td>{{ u.txns }}</td>
+      <td><span class="bfraud">{{ u.frauds }}</span></td>
+      <td>{% set rate=(u.frauds/u.txns*100) if u.txns else 0 %}<span style="color:{% if rate>30 %}#f87171{% elif rate>10 %}#fbbf24{% else %}#4ade80{% endif %}">{{ "%.1f"|format(rate) }}%</span></td>
+      <td>₹{{ "{:,.0f}".format(u.volume|float) }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+Chart.defaults.color='#6b7d96';Chart.defaults.borderColor='rgba(255,255,255,0.07)';
+const monthly={{ monthly|tojson }};
+if(monthly.length){new Chart(document.getElementById('monthChart'),{type:'bar',data:{labels:monthly.map(r=>r.month).reverse(),datasets:[{label:'Legitimate',data:monthly.map(r=>r.total-r.frauds).reverse(),backgroundColor:'rgba(19,136,8,0.6)',borderRadius:4},{label:'Fraud',data:monthly.map(r=>r.frauds).reverse(),backgroundColor:'rgba(239,68,68,0.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:'#6b7d96',font:{size:11}}}},scales:{x:{stacked:true,ticks:{color:'#6b7d96',font:{size:10}}},y:{stacked:true,ticks:{color:'#6b7d96',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}}}}})}
+const risk={{ risk_dist|tojson }};
+if(risk.length){new Chart(document.getElementById('riskChart'),{type:'doughnut',data:{labels:risk.map(r=>r.band),datasets:[{data:risk.map(r=>r.cnt),backgroundColor:['#22c55e','#f59e0b','#f97316','#ef4444'],borderWidth:0,hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{color:'#6b7d96',font:{size:11},padding:14}}}}})}
+</script>
+{% endblock %}

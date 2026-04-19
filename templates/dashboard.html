@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — OPFD{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><div class="ptitle">🇮🇳 Dashboard</div><div class="psub">Welcome, {{ session.full_name or session.username }} &nbsp;|&nbsp; Online Payment Fraud Monitor</div></div>
+  <div class="topbar-right"><a href="/predict" class="btn btn-p"><i class="fas fa-search-dollar"></i> Check Transaction</a></div>
+</div>
+<div class="sg">
+  <div class="sc sf"><div class="sc-lbl">Total Transactions</div><div class="sc-val">{{ stats.total or 0 }}</div><div class="sc-icon">📊</div></div>
+  <div class="sc sr"><div class="sc-lbl">Fraud Detected</div><div class="sc-val" style="color:#f87171">{{ stats.frauds or 0 }}</div><div class="sc-icon">🚨</div></div>
+  <div class="sc sg2"><div class="sc-lbl">Legitimate</div><div class="sc-val" style="color:#4ade80">{{ stats.legit or 0 }}</div><div class="sc-icon">✅</div></div>
+  <div class="sc sb"><div class="sc-lbl">Total Volume (₹)</div><div class="sc-val" style="font-size:18px">{{ fmt_inr(stats.total_amount or 0) }}</div><div class="sc-icon">₹</div></div>
+</div>
+{% set total=(stats.total or 0) %}{% set frauds=(stats.frauds or 0) %}
+{% if total>0 %}
+<div class="card" style="margin-bottom:18px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Fraud Rate</span>
+    <span style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:{% if frauds/total>0.3 %}#f87171{% elif frauds/total>0.1 %}#fbbf24{% else %}#4ade80{% endif %}">{{ "%.1f"|format(frauds/total*100) }}%</span>
+  </div>
+  <div class="rbar"><div class="rfill" style="width:{{ [frauds/total*100,100]|min }}%;background:{% if frauds/total>0.3 %}var(--danger){% elif frauds/total>0.1 %}var(--warning){% else %}var(--success){% endif %}"></div></div>
+</div>
+{% endif %}
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700">Recent Transactions</div>
+    <a href="/history" class="btn btn-o btn-sm">View All →</a>
+  </div>
+  {% if recent %}
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Amount</th><th>Result</th><th>Risk</th><th>Receipt</th></tr></thead>
+    <tbody>{% for t in recent %}<tr>
+      <td style="color:var(--muted);font-size:12px">#{{ t.id }}</td>
+      <td style="color:var(--muted);font-size:12px">{{ t.created_at|string|truncate(16,true,'') }}</td>
+      <td><span style="background:rgba(255,153,51,.1);color:var(--saffron);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700">{{ t.type }}</span></td>
+      <td style="font-weight:600">₹{{ "{:,.0f}".format(t.amount_inr|float) }}</td>
+      <td>{% if t.prediction=='Fraud' %}<span class="bfraud">⚠️ Fraud</span>{% else %}<span class="blegit">✅ Legit</span>{% endif %}</td>
+      <td><div style="display:flex;align-items:center;gap:7px"><div class="rbar" style="width:50px"><div class="rfill" style="width:{{ t.risk_score or 0 }}%;background:{% if (t.risk_score or 0)>70 %}var(--danger){% elif (t.risk_score or 0)>40 %}var(--warning){% else %}var(--success){% endif %}"></div></div><span style="font-size:11px;color:var(--muted)">{{ t.risk_score or 0 }}</span></div></td>
+      <td><a href="/receipt/{{ t.id }}" class="btn btn-o btn-sm"><i class="fas fa-receipt"></i></a></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}
+  <div style="text-align:center;padding:44px 0;color:var(--muted)"><div style="font-size:48px;margin-bottom:12px">🔍</div><div>No transactions yet.</div><a href="/predict" style="color:var(--saffron);text-decoration:none">Check your first transaction →</a></div>
+  {% endif %}
+</div>
+{% endblock %}

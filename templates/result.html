@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Result — OPFD{% endblock %}
+{% block extra_css %}
+.hero{text-align:center;padding:44px 28px;border-radius:16px;margin-bottom:20px;position:relative;overflow:hidden}
+.hero.fraud{background:radial-gradient(ellipse at center,rgba(239,68,68,.18),rgba(239,68,68,.03));border:1px solid rgba(239,68,68,.3)}
+.hero.legit{background:radial-gradient(ellipse at center,rgba(34,197,94,.15),rgba(34,197,94,.03));border:1px solid rgba(34,197,94,.3)}
+.hero-icon{font-size:66px;display:block;margin-bottom:12px;animation:pop .5s ease}
+.hero-label{font-family:'Syne',sans-serif;font-size:30px;font-weight:800}
+.hero-label.fraud{color:#f87171}.hero-label.legit{color:#4ade80}
+.hero-amt{font-size:17px;color:var(--muted);margin-top:7px}
+.dg{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:20px}
+.di{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+.dv{font-family:'Syne',sans-serif;font-size:18px;font-weight:700}
+.dl{font-size:11px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+@keyframes pop{0%{transform:scale(.6);opacity:0}80%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><div class="ptitle">📋 Analysis Result</div><div class="psub">Transaction #{{ txn_id }} &nbsp;|&nbsp; {{ txn_type }}</div></div>
+  <div class="topbar-right">
+    <a href="/predict" class="btn btn-o">← Another Check</a>
+    <a href="/receipt/{{ txn_id }}" class="btn btn-o"><i class="fas fa-receipt"></i> Receipt</a>
+    <a href="/history" class="btn btn-p">View History</a>
+  </div>
+</div>
+<div class="hero {{ 'fraud' if result=='Fraud' else 'legit' }}">
+  <span class="hero-icon">{{ '🚨' if result=='Fraud' else '✅' }}</span>
+  <div class="hero-label {{ 'fraud' if result=='Fraud' else 'legit' }}">{{ 'FRAUD DETECTED' if result=='Fraud' else 'LEGITIMATE TRANSACTION' }}</div>
+  <div class="hero-amt">Amount: <strong>{{ amount }}</strong></div>
+  {% if result=='Fraud' %}<div style="margin-top:14px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 18px;display:inline-block;font-size:12px;color:#fca5a5">⚠️ Flagged — alert sent to your dashboard.</div>{% endif %}
+</div>
+<div class="dg">
+  <div class="di"><div class="dv" style="color:{% if risk>70 %}#f87171{% elif risk>40 %}#fbbf24{% else %}#4ade80{% endif %}">{{ risk }}/100</div><div class="dl">Risk Score</div><div class="rbar" style="margin-top:9px"><div class="rfill" style="width:{{risk}}%;background:{% if risk>70 %}var(--danger){% elif risk>40 %}var(--warning){% else %}var(--success){% endif %}"></div></div></div>
+  <div class="di"><div class="dv" style="color:var(--saffron)">{{ confidence }}%</div><div class="dl">Model Confidence</div></div>
+  <div class="di"><div class="dv">{{ txn_type }}</div><div class="dl">Transaction Type</div></div>
+</div>
+<div class="card">
+  <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:13px">🇮🇳 Indian Fraud Risk Assessment</div>
+  {% if result=='Fraud' %}
+  <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:15px">
+    <div style="font-weight:700;color:#f87171;margin-bottom:9px">Recommended Actions</div>
+    <ul style="color:rgba(255,255,255,.7);font-size:12px;padding-left:16px;line-height:2">
+      <li>Immediately block this transaction if still pending</li>
+      <li>Call RBI helpline: <strong>1800-111-109</strong></li>
+      <li>Report at <strong>cybercrime.gov.in</strong></li>
+      <li>File complaint under IT Act Section 66C/66D</li>
+    </ul>
+  </div>
+  {% else %}
+  <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:10px;padding:15px;color:#86efac;font-size:13px">
+    ✅ No fraud patterns detected. Risk score {{ risk }}/100 — within safe thresholds.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

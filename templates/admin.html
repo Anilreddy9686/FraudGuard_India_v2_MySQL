@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel — OPFD{% endblock %}
+{% block extra_css %}
+.tab-bar{display:flex;gap:4px;background:rgba(255,255,255,.05);border-radius:10px;padding:4px;margin-bottom:22px;width:fit-content}
+.atab{padding:8px 18px;border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:transparent;font-family:inherit;transition:all .18s}
+.atab.on{background:var(--saffron);color:#000}
+.panel{display:none}.panel.on{display:block}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.on{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px;width:100%;max-width:380px}
+.modal h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:14px}
+{% endblock %}
+{% block content %}
+<div class="topbar"><div><div class="ptitle">👑 Admin Panel</div><div class="psub">System management — Online Payment Fraud Detection</div></div></div>
+<div class="sg" style="margin-bottom:22px">
+  <div class="sc sf"><div class="sc-lbl">Total Transactions</div><div class="sc-val">{{ stats.total_txns or 0 }}</div><div class="sc-icon">📊</div></div>
+  <div class="sc sr"><div class="sc-lbl">Fraud Detected</div><div class="sc-val" style="color:#f87171">{{ stats.total_frauds or 0 }}</div><div class="sc-icon">🚨</div></div>
+  <div class="sc sg2"><div class="sc-lbl">Total Volume</div><div class="sc-val" style="font-size:17px">₹{{ "{:,.0f}".format((stats.total_volume or 0)|float) }}</div><div class="sc-icon">₹</div></div>
+  <div class="sc sb"><div class="sc-lbl">Fraud Volume</div><div class="sc-val" style="font-size:17px;color:#f87171">₹{{ "{:,.0f}".format((stats.fraud_volume or 0)|float) }}</div><div class="sc-icon">⚠️</div></div>
+</div>
+<div class="tab-bar">
+  <button class="atab on" onclick="show('users',this)"><i class="fas fa-users"></i> Users</button>
+  <button class="atab"    onclick="show('txns',this)"><i class="fas fa-list-alt"></i> Transactions</button>
+  <button class="atab"    onclick="show('audit',this)"><i class="fas fa-shield-alt"></i> Audit Log</button>
+  <button class="atab"    onclick="show('ipblock',this)"><i class="fas fa-ban"></i> IP Blacklist</button>
+</div>
+<!-- Users -->
+<div id="p-users" class="panel on"><div class="card"><div class="tw"><table>
+  <thead><tr><th>#</th><th>Full Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>OTP</th><th>Registered</th><th>Actions</th></tr></thead>
+  <tbody>{% for u in users %}<tr>
+    <td style="color:var(--muted);font-size:11px">{{ u.id }}</td>
+    <td style="font-weight:600;font-size:13px">{{ u.full_name or '—' }}</td>
+    <td style="color:var(--saffron);font-size:12px">{{ u.username }}</td>
+    <td style="font-size:11px;color:var(--muted)">{{ u.email }}</td>
+    <td>{% if u.role=='admin' %}<span class="badmin">👑 Admin</span>{% else %}<span class="buser">👤 User</span>{% endif %}</td>
+    <td><span class="status-dot" style="background:{{ '#22c55e' if u.is_active else '#ef4444' }}"></span><span style="font-size:11px;color:{% if u.is_active %}#4ade80{% else %}#f87171{% endif %}">{{ 'Active' if u.is_active else 'Locked' }}</span></td>
+    <td style="font-size:11px;color:var(--muted)">{{ '🔐 On' if u.otp_enabled else '🔓 Off' }}</td>
+    <td style="font-size:11px;color:var(--muted)">{{ u.created_at|string|truncate(10,true,'') }}</td>
+    <td><div style="display:flex;gap:5px;flex-wrap:wrap">
+      {% if u.id!=session.user_id %}
+      <form method="POST" action="/admin/toggle/{{ u.id }}" style="display:inline"><button class="btn {% if u.is_active %}btn-d{% else %}btn-s{% endif %} btn-sm" type="submit">{{ '🔒' if u.is_active else '✅' }}</button></form>
+      {% if u.role!='admin' %}<form method="POST" action="/admin/promote/{{ u.id }}" style="display:inline"><button class="btn btn-o btn-sm">👑</button></form>
+      {% else %}<form method="POST" action="/admin/demote/{{ u.id }}" style="display:inline"><button class="btn btn-o btn-sm">⬇</button></form>{% endif %}
+      <button class="btn btn-o btn-sm" onclick="openReset({{ u.id }},'{{ u.username }}')">🔑</button>
+      <form method="POST" action="/admin/delete_user/{{ u.id }}" style="display:inline" onsubmit="return confirm('Delete {{ u.username }}?')"><button class="btn btn-d btn-sm">🗑</button></form>
+      {% else %}<span style="font-size:11px;color:var(--muted);padding:5px">You</span>{% endif %}
+    </div></td>
+  </tr>{% else %}<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--muted)">No users.</td></tr>{% endfor %}</tbody>
+</table></div></div></div>
+<!-- Transactions -->
+<div id="p-txns" class="panel"><div class="card"><div class="tw"><table>
+  <thead><tr><th>#</th><th>User</th><th>Date</th><th>Type</th><th>Amount</th><th>Result</th><th>Risk</th><th>IP</th><th>Action</th></tr></thead>
+  <tbody>{% for t in recent %}<tr>
+    <td style="color:var(--muted);font-size:11px">#{{ t.id }}</td>
+    <td style="font-size:11px;color:var(--saffron)">{{ t.username }}</td>
+    <td style="font-size:11px;color:var(--muted);white-space:nowrap">{{ t.created_at|string|truncate(16,true,'') }}</td>
+    <td><span style="background:rgba(255,153,51,.1);color:var(--saffron);padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700">{{ t.type }}</span></td>
+    <td style="font-weight:700">₹{{ "{:,.0f}".format(t.amount_inr|float) }}</td>
+    <td>{% if t.prediction=='Fraud' %}<span class="bfraud">⚠️ Fraud</span>{% else %}<span class="blegit">✅ Legit</span>{% endif %}</td>
+    <td style="font-size:11px;color:{% if (t.risk_score or 0)>70 %}#f87171{% elif (t.risk_score or 0)>40 %}#fbbf24{% else %}#4ade80{% endif %}">{{ t.risk_score or 0 }}/100</td>
+    <td style="font-size:10px;color:var(--muted)">{{ t.ip_address or '—' }}</td>
+    <td><form method="POST" action="/admin/delete_txn/{{ t.id }}" onsubmit="return confirm('Delete?')"><button class="btn btn-d btn-sm">🗑</button></form></td>
+  </tr>{% else %}<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--muted)">No transactions.</td></tr>{% endfor %}</tbody>
+</table></div></div></div>
+<!-- Audit -->
+<div id="p-audit" class="panel"><div class="card"><div class="tw"><table>
+  <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th><th>IP</th></tr></thead>
+  <tbody>{% for a in audit %}<tr>
+    <td style="font-size:11px;color:var(--muted);white-space:nowrap">{{ a.created_at|string|truncate(16,true,'') }}</td>
+    <td style="color:var(--saffron);font-size:12px">{{ a.username or 'System' }}</td>
+    <td><span style="background:rgba(59,130,246,.12);color:#60a5fa;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700">{{ a.action }}</span></td>
+    <td style="font-size:11px;color:var(--muted)">{{ a.details or '—' }}</td>
+    <td style="font-size:10px;color:var(--muted)">{{ a.ip_address or '—' }}</td>
+  </tr>{% else %}<tr><td colspan="5" style="text-align:center;padding:36px;color:var(--muted)">No entries.</td></tr>{% endfor %}</tbody>
+</table></div></div></div>
+<!-- IP Blacklist -->
+<div id="p-ipblock" class="panel">
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">🚫 Block New IP</div>
+    <form method="POST" action="/admin/block_ip" style="display:flex;gap:10px;flex-wrap:wrap">
+      <input name="ip_address" class="fc" style="flex:1;min-width:160px" placeholder="IP address e.g. 192.168.1.1" required>
+      <input name="reason" class="fc" style="flex:2;min-width:200px" placeholder="Reason">
+      <button type="submit" class="btn btn-d"><i class="fas fa-ban"></i> Block IP</button>
+    </form>
+  </div>
+  <div class="card"><div class="tw"><table>
+    <thead><tr><th>IP Address</th><th>Reason</th><th>Blocked On</th><th>Action</th></tr></thead>
+    <tbody>{% for b in blacklist %}<tr>
+      <td style="font-weight:600;color:#f87171">{{ b.ip_address }}</td>
+      <td style="font-size:12px;color:var(--muted)">{{ b.reason or '—' }}</td>
+      <td style="font-size:11px;color:var(--muted)">{{ b.created_at|string|truncate(16,true,'') }}</td>
+      <td><form method="POST" action="/admin/unblock_ip/{{ b.id }}" style="display:inline"><button class="btn btn-s btn-sm">✅ Unblock</button></form></td>
+    </tr>{% else %}<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--muted)">No blocked IPs.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+</div>
+<!-- Reset modal -->
+<div class="modal-overlay" id="reset-modal">
+  <div class="modal"><h3>🔑 Reset Password</h3><p id="reset-label" style="color:var(--muted);font-size:12px;margin-bottom:14px"></p>
+  <form method="POST" id="reset-form">
+    <div class="fg"><label class="fl">New Password</label><input type="password" name="new_password" class="fc" placeholder="Min 8 characters" required minlength="8"></div>
+    <div style="display:flex;gap:9px;margin-top:6px">
+      <button type="submit" class="btn btn-p" style="flex:1">Reset</button>
+      <button type="button" class="btn btn-o" onclick="closeReset()">Cancel</button>
+    </div>
+  </form></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function show(tab,btn){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.atab').forEach(b=>b.classList.remove('on'));document.getElementById('p-'+tab).classList.add('on');btn.classList.add('on')}
+function openReset(uid,username){document.getElementById('reset-label').textContent=`Resetting for: @${username}`;document.getElementById('reset-form').action=`/admin/reset_password/${uid}`;document.getElementById('reset-modal').classList.add('on')}
+function closeReset(){document.getElementById('reset-modal').classList.remove('on')}
+document.getElementById('reset-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeReset()});
+</script>
+{% endblock %}

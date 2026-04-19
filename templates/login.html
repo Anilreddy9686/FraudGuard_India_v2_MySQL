@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login — Online Payment Fraud Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:#060c16;min-height:100vh;display:flex;
+background-image:radial-gradient(ellipse 700px 500px at 10% 10%,rgba(255,153,51,.08) 0%,transparent 65%),
+radial-gradient(ellipse 600px 400px at 90% 90%,rgba(19,136,8,.06) 0%,transparent 60%);}
+.left{flex:1;display:flex;flex-direction:column;justify-content:center;padding:60px 56px;border-right:1px solid rgba(255,255,255,.06);position:relative;overflow:hidden}
+.left::after{content:'🛡️';position:absolute;font-size:300px;right:-40px;bottom:-60px;opacity:.03;line-height:1}
+.brand{font-family:'Syne',sans-serif;font-size:38px;font-weight:800;line-height:1.1;color:#fff}
+.brand em{font-style:normal;background:linear-gradient(120deg,#FF9933,#ffd480);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.brand-sub{color:rgba(255,255,255,.45);font-size:15px;margin-top:10px}
+.dev{color:rgba(255,153,51,.7);font-size:12px;margin-top:6px}
+.tribar{display:flex;height:4px;border-radius:2px;overflow:hidden;width:80px;margin:20px 0}
+.tribar span:nth-child(1){flex:1;background:#FF9933}.tribar span:nth-child(2){flex:1;background:#fff}.tribar span:nth-child(3){flex:1;background:#138808}
+.feat{display:flex;align-items:flex-start;gap:13px;margin-bottom:18px}
+.fi{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.fi.o{background:rgba(255,153,51,.15);color:#FF9933}.fi.g{background:rgba(19,136,8,.15);color:#4ade80}.fi.b{background:rgba(59,130,246,.15);color:#60a5fa}.fi.r{background:rgba(239,68,68,.15);color:#f87171}
+.ft{font-weight:600;color:rgba(255,255,255,.88);font-size:13px}.fd{font-size:12px;color:rgba(255,255,255,.38);margin-top:1px}
+.right{width:440px;display:flex;flex-direction:column;justify-content:center;padding:48px 40px}
+.form-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:#fff;margin-bottom:4px}
+.form-sub{color:rgba(255,255,255,.38);font-size:13px;margin-bottom:26px}
+.tabs{display:flex;gap:4px;background:rgba(255,255,255,.05);border-radius:10px;padding:4px;margin-bottom:26px}
+.tab{flex:1;padding:8px;text-align:center;border-radius:8px;font-size:13px;font-weight:600;color:rgba(255,255,255,.4);text-decoration:none;transition:all .18s}
+.tab.on{background:#FF9933;color:#000}
+.fg{margin-bottom:14px}
+label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:5px}
+.ii{position:relative}.ii i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.25);font-size:13px}
+input{width:100%;padding:11px 12px 11px 36px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);color:#fff;font-size:13px;font-family:inherit;outline:none;transition:all .18s}
+input:focus{border-color:#FF9933;background:rgba(255,153,51,.06)}
+.btn{width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,#FF9933,#e67e00);color:#000;font-weight:700;font-size:14px;border:none;cursor:pointer;transition:all .2s;margin-top:4px;font-family:inherit}
+.btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(255,153,51,.3)}
+.alert{padding:10px 13px;border-radius:9px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:8px}
+.a-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171}
+.a-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:#4ade80}
+.a-info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:#60a5fa}
+.a-warning{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:#fbbf24}
+.hint{font-size:11px;color:rgba(255,255,255,.25);text-align:center;margin-top:14px;line-height:1.8}
+.hint strong{color:rgba(255,255,255,.5)}
+.fp{text-align:right;margin-top:4px}<br><a style="font-size:11px;color:rgba(255,153,51,.6);text-decoration:none" href="/forgot-password">Forgot password?</a>
+@media(max-width:800px){.left{display:none}.right{width:100%}}
+</style>
+</head>
+<body>
+<div class="left">
+  <div class="brand"><em>Online Payment</em><br>Fraud Detection</div>
+  <div class="brand-sub">AI-Powered Indian Payment Fraud Detection System</div>
+  <div class="dev">Developed by ANILREDDY &nbsp;|&nbsp; 📞 9686809509</div>
+  <div class="tribar"><span></span><span></span><span></span></div>
+  <div class="feat"><div class="fi o"><i class="fas fa-rupee-sign"></i></div><div><div class="ft">Indian Rupee (₹) Native</div><div class="fd">Built for UPI, NEFT, RTGS, IMPS transactions</div></div></div>
+  <div class="feat"><div class="fi g"><i class="fas fa-brain"></i></div><div><div class="ft">ML-Powered Detection</div><div class="fd">Random Forest trained on millions of transactions</div></div></div>
+  <div class="feat"><div class="fi r"><i class="fas fa-shield-alt"></i></div><div><div class="ft">Security Hardened</div><div class="fd">Rate limiting, OTP 2FA, account lockout, IP blacklist</div></div></div>
+  <div class="feat"><div class="fi b"><i class="fas fa-database"></i></div><div><div class="ft">MySQL Database</div><div class="fd">Full audit trail with 7 tables</div></div></div>
+</div>
+<div class="right">
+  <div class="form-title">Welcome Back 🙏</div>
+  <div class="form-sub">Sign in to your OPFD account</div>
+  <div class="tabs"><a href="/login" class="tab on">Sign In</a><a href="/register" class="tab">Register</a></div>
+  {% with msgs=get_flashed_messages(with_categories=true) %}{% if msgs %}{% for c,m in msgs %}
+  <div class="alert a-{{c}}"><i class="fas fa-info-circle"></i>{{m}}</div>
+  {% endfor %}{% endif %}{% endwith %}
+  <form method="POST" action="/login">
+    <div class="fg"><label>Username</label><div class="ii"><i class="fas fa-user"></i><input name="username" placeholder="Your username" required autofocus></div></div>
+    <div class="fg"><label>Password</label><div class="ii"><i class="fas fa-lock"></i><input type="password" name="password" placeholder="Your password" required></div></div>
+    <div style="text-align:right;margin-bottom:8px"><a href="/forgot-password" style="font-size:11px;color:rgba(255,153,51,.7);text-decoration:none">Forgot password?</a></div>
+    <button type="submit" class="btn">Sign In →</button>
+  </form>
+  <div class="hint">Default admin: <strong>admin</strong> / <strong>Admin@123</strong><br>
+  <a href="/register" style="color:rgba(255,153,51,.7);text-decoration:none">Create a new account →</a></div>
+</div>
+</body></html>
