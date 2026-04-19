@@ -10,7 +10,15 @@ pymysql.install_as_MySQLdb()
 from flask import Flask, redirect, url_for, session
 from config import Config
 
-from modules.db       import init_db, mysql
+# ── SAFE IMPORTS (avoid crash if DB not available) ───────────
+DB_ENABLED = True
+
+try:
+    from modules.db import init_db, mysql
+except Exception as e:
+    print("⚠️ DB module import failed:", e)
+    DB_ENABLED = False
+
 from modules.auth     import auth_bp
 from modules.otp      import otp_bp
 from modules.predict  import predict_bp
@@ -28,14 +36,10 @@ from modules.settings import settings_bp
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# 🔐 ADD: Secret key (required for session security)
+# 🔐 Security configs
 app.config["SECRET_KEY"] = "anigma_secure_key_2026"
-
-# 🔐 ADD: Extra security headers
-app.config["SESSION_COOKIE_SECURE"] = False  # True only in HTTPS
-app.config["PERMANENT_SESSION_LIFETIME"] = 1800  # 30 min timeout
-
-# ── Security: HttpOnly + SameSite cookies ───────────────────
+app.config["SESSION_COOKIE_SECURE"] = False
+app.config["PERMANENT_SESSION_LIFETIME"] = 1800
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
@@ -46,23 +50,22 @@ for bp in [auth_bp, otp_bp, predict_bp, admin_bp, history_bp,
     app.register_blueprint(bp)
 
 # ── Init MySQL (SAFE MODE FOR RENDER) ───────────────────────
-DB_ENABLED = True
-
 try:
-    # 👉 Skip DB on Render if no proper env
-    if os.environ.get("RENDER") or os.environ.get("DISABLE_DB") == "1":
-        print("⚠️ Running in NO-DB mode (Render)")
-        DB_ENABLED = False
-    else:
-        init_db(app)
+    if DB_ENABLED:
+        # 👉 Disable DB automatically on Render
+        if os.environ.get("RENDER") or os.environ.get("DISABLE_DB") == "1":
+            print("⚠️ Running in NO-DB mode (Render)")
+            DB_ENABLED = False
+        else:
+            init_db(app)
 
-        # 🔥 Test DB connection
-        with app.app_context():
-            conn = mysql.connection
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            cursor.close()
-            print("✅ MySQL Connected Successfully")
+            # 🔥 Test DB connection
+            with app.app_context():
+                conn = mysql.connection
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.close()
+                print("✅ MySQL Connected Successfully")
 
 except Exception as e:
     DB_ENABLED = False
@@ -76,7 +79,7 @@ def index():
         return redirect(url_for("predict.dashboard"))
     return redirect(url_for("auth.login"))
 
-# 🔥 ADD: Health check (useful for Render)
+# 🔥 Health check (Render uses this sometimes)
 @app.route("/health")
 def health():
     return {
@@ -84,12 +87,13 @@ def health():
         "db": "connected" if DB_ENABLED else "disabled"
     }
 
-# 🔥 ADD: Global error handler (prevents crash UI)
+# 🔥 Global error handler
 @app.errorhandler(Exception)
 def handle_error(e):
     print("🔥 ERROR:", str(e))
     return "Something went wrong. Check logs.", 500
 
+# ── Run server ───────────────────────────────────────────────
 if __name__ == "__main__":
     print("🚀 Starting OPFD Server...")
     if not DB_ENABLED:
