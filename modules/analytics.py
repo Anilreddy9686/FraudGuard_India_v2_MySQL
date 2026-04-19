@@ -1,3 +1,4 @@
+```python
 """modules/analytics.py"""
 from flask import Blueprint, render_template, session
 from modules.security import login_required
@@ -69,6 +70,48 @@ def analytics():
             LIMIT 10
         """) if is_admin else []
 
+        # 🔥 ADD: HANDLE EMPTY DATA (VERY IMPORTANT FIX)
+        if not monthly and not by_type and not risk_dist:
+            print("⚠️ No analytics data → loading demo data")
+
+            monthly = [{
+                "month": "2026-01",
+                "total": 10,
+                "frauds": 2,
+                "volume": 50000
+            }]
+
+            by_type = [{
+                "type": "TRANSFER",
+                "total": 10,
+                "frauds": 2,
+                "avg_amount": 5000
+            }]
+
+            risk_dist = [
+                {"band": "Low (0-29)", "cnt": 5},
+                {"band": "Medium (30-59)", "cnt": 3},
+                {"band": "High (60-79)", "cnt": 1},
+                {"band": "Critical (80+)", "cnt": 1},
+            ]
+
+            top_users = [{
+                "username": "admin",
+                "txns": 10,
+                "frauds": 2,
+                "volume": 50000
+            }]
+
+            return render_template(
+                "analytics.html",
+                monthly=monthly,
+                by_type=by_type,
+                risk_dist=risk_dist,
+                top_users=top_users,
+                is_admin=True,
+                demo_mode=True
+            )
+
         return render_template(
             "analytics.html",
             monthly=monthly,
@@ -81,7 +124,7 @@ def analytics():
     except Exception as e:
         print("🔥 ANALYTICS ERROR:", e)
 
-        # 🔥 ADD: DEMO DATA (NEW LINES ONLY)
+        # 🔥 ADD: DEMO DATA (NO DB MODE)
         demo_monthly = [{
             "month": "2026-01",
             "total": 10,
@@ -119,3 +162,4 @@ def analytics():
             is_admin=True,
             demo_mode=True
         )
+```
