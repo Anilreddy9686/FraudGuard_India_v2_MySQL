@@ -81,7 +81,10 @@ def dashboard():
         )
         unread = unread_row["c"] if unread_row else 0
 
-        # 🔥🔥🔥 MAIN FIX (THIS WAS MISSING)
+        # 🔥 ADD: DEBUG LOG (IMPORTANT)
+        print("📊 DASHBOARD DATA:", stats, "Recent:", len(recent))
+
+        # 🔥 AUTO UPDATE FIX (EMPTY → DEMO)
         if not recent:
             print("⚠️ No transactions → showing demo dashboard")
 
@@ -100,22 +103,6 @@ def dashboard():
                     "prediction": "Fraud",
                     "risk_score": 82,
                     "created_at": "2026-01-01 10:00"
-                },
-                {
-                    "id": 2,
-                    "type": "PAYMENT",
-                    "amount_inr": 2000,
-                    "prediction": "Legitimate",
-                    "risk_score": 20,
-                    "created_at": "2026-01-02 11:30"
-                },
-                {
-                    "id": 3,
-                    "type": "DEBIT",
-                    "amount_inr": 8000,
-                    "prediction": "Fraud",
-                    "risk_score": 75,
-                    "created_at": "2026-01-03 09:15"
                 }
             ]
 
@@ -147,16 +134,7 @@ def dashboard():
                 "legit": 8,
                 "total_amount": 50000
             },
-            recent=[
-                {
-                    "id": 1,
-                    "type": "TRANSFER",
-                    "amount_inr": 5000,
-                    "prediction": "Fraud",
-                    "risk_score": 80,
-                    "created_at": "2026-01-01 10:00"
-                }
-            ],
+            recent=[{"id": 1, "type": "TRANSFER", "amount_inr": 5000}],
             alerts_count=1,
             fmt_inr=fmt_inr,
             demo_mode=True
@@ -204,6 +182,7 @@ def predict():
         if result == "Fraud":
             risk = max(risk, 65)
 
+        # 🔥 AUTO UPDATE CORE FIX (SAVE + LOG)
         try:
             txn_id = execute("""
                 INSERT INTO transactions
@@ -213,7 +192,11 @@ def predict():
             """, (session["user_id"], step, TXN_TYPES.get(t_type,str(t_type)),
                   amount, old_orig, new_orig, old_dest, new_dest,
                   result, confidence, risk, request.remote_addr))
-        except:
+
+            print("✅ TRANSACTION SAVED:", txn_id)
+
+        except Exception as e:
+            print("❌ TRANSACTION SAVE FAILED:", e)
             txn_id = 0
 
         return render_template("result.html",
