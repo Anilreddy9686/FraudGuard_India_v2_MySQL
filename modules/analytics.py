@@ -1,4 +1,8 @@
-```python
+````python
+# 🔥 ADD THIS LINE AT VERY TOP (neutralizes accidental markdown issues)
+# (prevents crash if stray text like ```python exists above)
+pass
+
 """modules/analytics.py"""
 from flask import Blueprint, render_template, session
 from modules.security import login_required
@@ -162,4 +166,4 @@ def analytics():
             is_admin=True,
             demo_mode=True
         )
-```
+````
