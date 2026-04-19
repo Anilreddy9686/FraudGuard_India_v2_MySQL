@@ -1,9 +1,8 @@
-````python
 # 🔥 ADD THIS LINE AT VERY TOP (neutralizes accidental markdown issues)
-# (prevents crash if stray text like ```python exists above)
 pass
 
-"""modules/analytics.py"""
+"""modules/analytics.py — Fraud Analytics & Trends"""
+import os
 from flask import Blueprint, render_template, session
 from modules.security import login_required
 from modules.db import query
@@ -16,12 +15,12 @@ def analytics():
 
     # 🔥 ADD: SAFE WRAPPER (DO NOT REMOVE ORIGINAL CODE)
     try:
-        uid      = session["user_id"]
+        uid      = session.get("user_id", 1)
         is_admin = session.get("role") == "admin"
 
         where_clause = "" if is_admin else f"WHERE user_id={uid}"
 
-        # 🔥 FIX: %% instead of % (VERY IMPORTANT)
+        # 🔥 FIX: %% instead of % (VERY IMPORTANT for SQL formatting in some drivers)
         monthly = query(f"""
             SELECT 
                 DATE_FORMAT(created_at,'%%Y-%%m') AS month,
@@ -166,4 +165,3 @@ def analytics():
             is_admin=True,
             demo_mode=True
         )
-````
