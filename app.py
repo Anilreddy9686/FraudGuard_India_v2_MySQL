@@ -3,6 +3,7 @@ app.py — Online Payment Fraud Detection v3.0
 Developed by ANILREDDY | 9686809509
 MySQL · Flask · ML · OTP 2FA · Security Hardened
 """
+import os
 import pymysql
 pymysql.install_as_MySQLdb()
 
@@ -44,19 +45,29 @@ for bp in [auth_bp, otp_bp, predict_bp, admin_bp, history_bp,
            heatmap_bp, receipt_bp, users_bp, settings_bp]:
     app.register_blueprint(bp)
 
-# ── Init MySQL ───────────────────────────────────────────────
-init_db(app)
+# ── Init MySQL (SAFE MODE FOR RENDER) ───────────────────────
+DB_ENABLED = True
 
-# 🔥 ADD: Test DB connection on startup
 try:
-    with app.app_context():
-        conn = mysql.connection
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.close()
-        print("✅ MySQL Connected Successfully")
+    # 👉 Skip DB on Render if no proper env
+    if os.environ.get("RENDER") or os.environ.get("DISABLE_DB") == "1":
+        print("⚠️ Running in NO-DB mode (Render)")
+        DB_ENABLED = False
+    else:
+        init_db(app)
+
+        # 🔥 Test DB connection
+        with app.app_context():
+            conn = mysql.connection
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.close()
+            print("✅ MySQL Connected Successfully")
+
 except Exception as e:
+    DB_ENABLED = False
     print("❌ MySQL Connection Failed:", e)
+    print("⚠️ Switching to NO-DB mode")
 
 # ── Root redirect ────────────────────────────────────────────
 @app.route("/")
@@ -65,12 +76,22 @@ def index():
         return redirect(url_for("predict.dashboard"))
     return redirect(url_for("auth.login"))
 
+# 🔥 ADD: Health check (useful for Render)
+@app.route("/health")
+def health():
+    return {
+        "status": "ok",
+        "db": "connected" if DB_ENABLED else "disabled"
+    }
+
 # 🔥 ADD: Global error handler (prevents crash UI)
 @app.errorhandler(Exception)
 def handle_error(e):
     print("🔥 ERROR:", str(e))
-    return "Something went wrong. Check terminal.", 500
+    return "Something went wrong. Check logs.", 500
 
 if __name__ == "__main__":
     print("🚀 Starting OPFD Server...")
+    if not DB_ENABLED:
+        print("⚠️ Running without database (demo mode)")
     app.run(debug=True, host="0.0.0.0", port=5000)
