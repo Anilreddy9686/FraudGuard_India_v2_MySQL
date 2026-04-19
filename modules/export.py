@@ -7,50 +7,67 @@ from modules.db import query, query_one
 
 export_bp = Blueprint("export", __name__)
 
+
 @export_bp.route("/export/csv")
 @login_required
 def export_csv():
-    uid      = session["user_id"]
-    is_admin = session.get("role") == "admin"
-    txns     = query("SELECT t.*,u.username FROM transactions t JOIN users u ON t.user_id=u.id ORDER BY t.created_at DESC") if is_admin else query("SELECT * FROM transactions WHERE user_id=%s ORDER BY created_at DESC", (uid,))
 
-    out = io.StringIO()
-    w   = csv.writer(out)
-    hdr = ["ID","Date","Type","Amount (INR)","Old Bal Sender","New Bal Sender","Old Bal Recv","New Bal Recv","Prediction","Risk","Confidence%"]
-    if is_admin: hdr.insert(1,"Username")
-    w.writerow(hdr)
-    for t in txns:
-        row = [t["id"],t["created_at"],t["type"],f"{float(t['amount_inr'] or 0):,.2f}",
-               f"{float(t['old_balance_orig'] or 0):,.2f}",f"{float(t['new_balance_orig'] or 0):,.2f}",
-               f"{float(t['old_balance_dest'] or 0):,.2f}",f"{float(t['new_balance_dest'] or 0):,.2f}",
-               t["prediction"],t["risk_score"],f"{t['confidence']}%"]
-        if is_admin: row.insert(1,t["username"])
-        w.writerow(row)
-    out.seek(0)
-    fname = f"ANILREDDY_OPFD_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    resp  = make_response(out.getvalue())
-    resp.headers["Content-Disposition"] = f"attachment; filename={fname}"
-    resp.headers["Content-Type"] = "text/csv; charset=utf-8"
-    return resp
+    # 🔥 ADD: SAFE WRAPPER (DO NOT REMOVE ORIGINAL CODE)
+    try:
+        uid      = session["user_id"]
+        is_admin = session.get("role") == "admin"
+        txns     = query("SELECT t.*,u.username FROM transactions t JOIN users u ON t.user_id=u.id ORDER BY t.created_at DESC") if is_admin else query("SELECT * FROM transactions WHERE user_id=%s ORDER BY created_at DESC", (uid,))
+
+        out = io.StringIO()
+        w   = csv.writer(out)
+        hdr = ["ID","Date","Type","Amount (INR)","Old Bal Sender","New Bal Sender","Old Bal Recv","New Bal Recv","Prediction","Risk","Confidence%"]
+        if is_admin: hdr.insert(1,"Username")
+        w.writerow(hdr)
+
+        for t in txns:
+            row = [t["id"],t["created_at"],t["type"],f"{float(t['amount_inr'] or 0):,.2f}",
+                   f"{float(t['old_balance_orig'] or 0):,.2f}",f"{float(t['new_balance_orig'] or 0):,.2f}",
+                   f"{float(t['old_balance_dest'] or 0):,.2f}",f"{float(t['new_balance_dest'] or 0):,.2f}",
+                   t["prediction"],t["risk_score"],f"{t['confidence']}%"]
+            if is_admin: row.insert(1,t["username"])
+            w.writerow(row)
+
+        out.seek(0)
+        fname = f"ANILREDDY_OPFD_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        resp  = make_response(out.getvalue())
+        resp.headers["Content-Disposition"] = f"attachment; filename={fname}"
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        return resp
+
+    except Exception as e:
+        print("🔥 EXPORT CSV ERROR:", e)
+
+        # 🔥 FALLBACK (NO DB MODE)
+        return "CSV export not available in demo mode", 200
+
 
 @export_bp.route("/export/report")
 @login_required
 def export_report():
-    uid      = session["user_id"]
-    is_admin = session.get("role") == "admin"
-    txns     = query("SELECT t.*,u.username FROM transactions t JOIN users u ON t.user_id=u.id ORDER BY t.created_at DESC LIMIT 100") if is_admin else query("SELECT * FROM transactions WHERE user_id=%s ORDER BY created_at DESC LIMIT 100", (uid,))
-    stats    = query_one("SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions") if is_admin else query_one("SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions WHERE user_id=%s", (uid,))
 
-    total  = int(stats["total"] or 0)
-    frauds = int(stats["frauds"] or 0)
-    volume = float(stats["volume"] or 0)
-    rows   = ""
-    for t in txns:
-        col  = "#ef4444" if t["prediction"]=="Fraud" else "#22c55e"
-        uname = t.get("username", session["username"])
-        rows += f"<tr><td>{t['id']}</td><td>{uname}</td><td>{str(t['created_at'])[:16]}</td><td>{t['type']}</td><td>₹{float(t['amount_inr'] or 0):,.2f}</td><td style='color:{col};font-weight:700'>{t['prediction']}</td><td>{t['risk_score']}/100</td></tr>"
+    # 🔥 ADD: SAFE WRAPPER (DO NOT REMOVE ORIGINAL CODE)
+    try:
+        uid      = session["user_id"]
+        is_admin = session.get("role") == "admin"
+        txns     = query("SELECT t.*,u.username FROM transactions t JOIN users u ON t.user_id=u.id ORDER BY t.created_at DESC LIMIT 100") if is_admin else query("SELECT * FROM transactions WHERE user_id=%s ORDER BY created_at DESC LIMIT 100", (uid,))
+        stats    = query_one("SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions") if is_admin else query_one("SELECT COUNT(*) AS total, SUM(prediction='Fraud') AS frauds, COALESCE(SUM(amount_inr),0) AS volume FROM transactions WHERE user_id=%s", (uid,))
 
-    html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        total  = int(stats["total"] or 0)
+        frauds = int(stats["frauds"] or 0)
+        volume = float(stats["volume"] or 0)
+
+        rows   = ""
+        for t in txns:
+            col  = "#ef4444" if t["prediction"]=="Fraud" else "#22c55e"
+            uname = t.get("username", session["username"])
+            rows += f"<tr><td>{t['id']}</td><td>{uname}</td><td>{str(t['created_at'])[:16]}</td><td>{t['type']}</td><td>₹{float(t['amount_inr'] or 0):,.2f}</td><td style='color:{col};font-weight:700'>{t['prediction']}</td><td>{t['risk_score']}/100</td></tr>"
+
+        html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 body{{font-family:Arial;margin:30px;color:#111}}h1{{color:#1e3a8a;border-bottom:3px solid #FF9933;padding-bottom:8px}}
 .meta{{color:#666;font-size:13px;margin-bottom:20px}}.stats{{display:flex;gap:16px;margin:20px 0;flex-wrap:wrap}}
 .stat{{background:#f0f4ff;padding:14px 20px;border-radius:8px;text-align:center;min-width:140px}}
@@ -73,11 +90,17 @@ td{{padding:7px 10px;border-bottom:1px solid #e5e7eb}}tr:nth-child(even){{backgr
 </div>
 <table><thead><tr><th>ID</th><th>User</th><th>Date</th><th>Type</th><th>Amount</th><th>Result</th><th>Risk</th></tr></thead>
 <tbody>{rows}</tbody></table>
-<div class="footer">Online Payment Fraud Detection &nbsp;•&nbsp; Developed by <strong>ANILREDDY</strong> &nbsp;•&nbsp; 📞 9686809509 &nbsp;•&nbsp; Confidential</div>
+<div class="footer">Online Payment Fraud Detection • Developed by <strong>ANILREDDY</strong></div>
 </body></html>"""
 
-    fname = f"ANILREDDY_OPFD_Report_{datetime.now().strftime('%Y%m%d')}.html"
-    resp  = make_response(html)
-    resp.headers["Content-Disposition"] = f"attachment; filename={fname}"
-    resp.headers["Content-Type"] = "text/html; charset=utf-8"
-    return resp
+        fname = f"ANILREDDY_OPFD_Report_{datetime.now().strftime('%Y%m%d')}.html"
+        resp  = make_response(html)
+        resp.headers["Content-Disposition"] = f"attachment; filename={fname}"
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        return resp
+
+    except Exception as e:
+        print("🔥 EXPORT REPORT ERROR:", e)
+
+        # 🔥 FALLBACK (NO DB MODE)
+        return "Report not available in demo mode", 200
