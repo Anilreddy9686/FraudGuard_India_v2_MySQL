@@ -8,24 +8,63 @@ history_bp = Blueprint("history", __name__)
 @history_bp.route("/history")
 @login_required
 def history():
-    uid      = session["user_id"]
-    is_admin = session.get("role") == "admin"
-    page     = max(int(request.args.get("page", 1)), 1)
-    per_page = 20
-    offset   = (page - 1) * per_page
-    filt     = request.args.get("filter", "all")
 
-    conditions = [] if is_admin else [f"t.user_id={uid}"]
-    if filt == "fraud":  conditions.append("t.prediction='Fraud'")
-    if filt == "legit":  conditions.append("t.prediction='Legitimate'")
-    w = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    # 🔥 ADD: SAFE WRAPPER (DO NOT REMOVE ORIGINAL LOGIC)
+    try:
+        uid      = session["user_id"]
+        is_admin = session.get("role") == "admin"
+        page     = max(int(request.args.get("page", 1)), 1)
+        per_page = 20
+        offset   = (page - 1) * per_page
+        filt     = request.args.get("filter", "all")
 
-    total = query_one(f"SELECT COUNT(*) AS c FROM transactions t {w}")["c"]
-    if is_admin:
-        rows = query(f"SELECT t.*,u.username FROM transactions t JOIN users u ON t.user_id=u.id {w} ORDER BY t.created_at DESC LIMIT %s OFFSET %s", (per_page, offset))
-    else:
-        rows = query(f"SELECT * FROM transactions t {w} ORDER BY t.created_at DESC LIMIT %s OFFSET %s", (per_page, offset))
+        conditions = [] if is_admin else [f"t.user_id={uid}"]
+        if filt == "fraud":  conditions.append("t.prediction='Fraud'")
+        if filt == "legit":  conditions.append("t.prediction='Legitimate'")
+        w = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-    pages = max((total + per_page - 1) // per_page, 1)
-    return render_template("history.html", txns=rows, page=page, pages=pages,
-                           total=total, filt=filt, is_admin=is_admin)
+        total = query_one(f"SELECT COUNT(*) AS c FROM transactions t {w}")["c"]
+
+        if is_admin:
+            rows = query(f"""
+                SELECT t.*,u.username 
+                FROM transactions t 
+                JOIN users u ON t.user_id=u.id 
+                {w} 
+                ORDER BY t.created_at DESC 
+                LIMIT %s OFFSET %s
+            """, (per_page, offset))
+        else:
+            rows = query(f"""
+                SELECT * FROM transactions t 
+                {w} 
+                ORDER BY t.created_at DESC 
+                LIMIT %s OFFSET %s
+            """, (per_page, offset))
+
+        pages = max((total + per_page - 1) // per_page, 1)
+
+        return render_template(
+            "history.html",
+            txns=rows,
+            page=page,
+            pages=pages,
+            total=total,
+            filt=filt,
+            is_admin=is_admin
+        )
+
+    except Exception as e:
+        print("🔥 HISTORY ERROR:", e)
+
+        # 🔥 ADD: FALLBACK FOR NO-DB MODE
+        return render_template(
+            "history.html",
+            txns=[],
+            page=1,
+            pages=1,
+            total=0,
+            filt="all",
+            is_admin=False,
+            demo_mode=True
+        )
