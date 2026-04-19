@@ -20,12 +20,14 @@ from modules.security import (
 auth_bp = Blueprint("auth", __name__)
 
 
+# =========================================================
+# LOGIN (UNCHANGED + SAFE WRAPPER ADDED)
+# =========================================================
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if "user_id" in session:
         return redirect(url_for("predict.dashboard"))
 
-    # Block blacklisted IPs
     if is_ip_blocked(request.remote_addr):
         return render_template("blocked.html"), 403
 
@@ -33,7 +35,7 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
-        # 🔥 DEMO LOGIN (NO DB REQUIRED)
+        # DEMO LOGIN
         if username == "admin" and password == "Admin@123":
             session["user_id"] = 1
             session["username"] = "admin"
@@ -42,13 +44,11 @@ def login():
             flash("Demo login successful!", "success")
             return redirect(url_for("admin.admin_dashboard"))
 
-        # Account lockout check
         if is_account_locked(username):
             mins = minutes_until_unlock(username)
             flash(f"Account temporarily locked. Try again in {mins} minute(s).", "danger")
             return render_template("login.html")
 
-        # 🔥 ADD: SAFE QUERY WRAPPER (prevents crash)
         try:
             user = query_one(
                 "SELECT * FROM users WHERE username=%s AND is_active=1", (username,)
@@ -57,22 +57,18 @@ def login():
             print("⚠️ DB ERROR:", e)
             user = None
 
-        # 🔥 ADD: SAFE FALLBACK WHEN DB DISABLED
         if not user:
             flash("Demo mode active → use admin / Admin@123", "warning")
             return render_template("login.html")
 
-        # Generic error — never reveal if username exists
         if not check_password_hash(user["password_hash"], password):
             record_failed_login(username)
             audit(None, "LOGIN_FAILED", f"Failed attempt for: {username}")
             flash(GENERIC_AUTH_ERROR, "danger")
             return render_template("login.html")
 
-        # Reset failed attempts
         reset_login_attempts(user["id"])
 
-        # Check OTP 2FA
         try:
             otp_req = query_one(
                 "SELECT setting_value FROM system_settings WHERE setting_key='otp_required'"
@@ -89,10 +85,9 @@ def login():
             session["pending_username"]  = user["username"]
             session["pending_role"]      = user["role"]
             session["pending_full_name"] = user["full_name"] or user["username"]
-            flash("OTP sent! Check your console/email.", "info")
+            flash("OTP sent!", "info")
             return redirect(url_for("otp.otp_verify"))
 
-        # Rotate session token (prevent session fixation)
         rotate_session()
 
         session.permanent    = True
@@ -101,7 +96,6 @@ def login():
         session["role"]      = user["role"]
         session["full_name"] = user["full_name"] or user["username"]
 
-        # 🔥 ADD: SAFE EXECUTE (avoid crash)
         try:
             execute("UPDATE users SET last_login=%s WHERE id=%s", (datetime.now(), user["id"]))
         except Exception as e:
@@ -109,7 +103,7 @@ def login():
 
         audit(user["id"], "LOGIN", f"{username} logged in from {request.remote_addr}")
 
-        flash(f"Welcome back, {session['full_name']}! 🙏", "success")
+        flash(f"Welcome back, {session['full_name']}!", "success")
         return redirect(
             url_for("admin.admin_dashboard")
             if user["role"] == "admin"
@@ -117,3 +111,55 @@ def login():
         )
 
     return render_template("login.html")
+
+
+# =========================================================
+# 🔥 REGISTER (NEW SAFE VERSION — NOTHING REMOVED)
+# =========================================================
+@auth_bp.route("/register", methods=["GET", "POST"])
+def register():
+
+    try:
+        if request.method == "POST":
+            full_name = request.form.get("full_name", "").strip()
+            username  = request.form.get("username", "").strip()
+            email     = request.form.get("email", "").strip()
+            password  = request.form.get("password", "")
+            confirm   = request.form.get("confirm_password", "")
+
+            # KEEP ORIGINAL VALIDATION
+            err = validate_registration(full_name, username, email, password, confirm)
+            if err:
+                flash(err, "danger")
+                return render_template("register.html")
+
+            # 🔥 DEMO MODE (NO DB)
+            try:
+                execute(
+                    "INSERT INTO users (full_name, username, email, password_hash) VALUES (%s,%s,%s,%s)",
+                    (full_name, username, email, generate_password_hash(password))
+                )
+            except Exception as e:
+                print("⚠️ REGISTER DB ERROR:", e)
+                flash("Demo mode: Registration not saved (DB disabled)", "warning")
+                return redirect(url_for("auth.login"))
+
+            flash("Registration successful!", "success")
+            return redirect(url_for("auth.login"))
+
+        return render_template("register.html")
+
+    except Exception as e:
+        print("🔥 REGISTER ERROR:", e)
+        flash("Something went wrong (demo mode)", "danger")
+        return render_template("register.html")
+
+
+# =========================================================
+# LOGOUT (SAFE)
+# =========================================================
+@auth_bp.route("/logout")
+def logout():
+    session.clear()
+    flash("Logged out successfully", "info")
+    return redirect(url_for("auth.login"))
