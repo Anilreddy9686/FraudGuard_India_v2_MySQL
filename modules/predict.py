@@ -1,21 +1,17 @@
-# 🔥 ADD: GLOBAL SAFE FLAG (AUTO MODE DETECTION)
-import os, pickle
+import sys
+import os
+
+# Add the project root directory to the python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+"""modules/predict.py — Dashboard + Fraud Prediction + INR"""
+import pickle
 import numpy as np
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from modules.security import login_required, validate_transaction_input, audit
 from modules.db import execute, query, query_one
 
 predict_bp = Blueprint("predict", __name__)
-
-AUTO_DB = True
-
-# 🔥 ADD: SAFE DB DETECTION
-try:
-    if os.environ.get("RENDER"):
-        AUTO_DB = False
-        print("⚠️ AUTO MODE: DB DISABLED (Render)")
-except:
-    AUTO_DB = False
 
 # Load ML model
 model = None
@@ -24,14 +20,11 @@ for _p in [
     os.path.join(os.path.dirname(__file__), "..", "..", "payments.pkl"),
 ]:
     try:
-        if os.path.exists(_p):
-            with open(_p, "rb") as f:
-                model = pickle.load(f)
-            print(f"✅ ML model loaded: {_p}")
-            break
-    except Exception as e:
-        print(f"❌ Model load error at {_p}: {e}")
-
+        model = pickle.load(open(_p, "rb"))
+        print(f"✅ ML model loaded: {_p}")
+        break
+    except Exception:
+        pass
 if not model:
     print("⚠️  ML model not found — rule-based fallback active")
 
@@ -71,84 +64,35 @@ def _risk_score(t_type, amount, old_orig, new_orig):
 @predict_bp.route("/dashboard")
 @login_required
 def dashboard():
-    try:
-        uid = session.get("user_id", 1)
-
-        # Database Query Block
-        if AUTO_DB:
-            try:
-                stats = query_one("""
-                    SELECT COUNT(*) AS total, 
-                           SUM(CASE WHEN prediction='Fraud' THEN 1 ELSE 0 END) AS frauds,
-                           SUM(CASE WHEN prediction='Legitimate' THEN 1 ELSE 0 END) AS legit,
-                           COALESCE(SUM(amount_inr),0) AS total_amount
-                    FROM transactions WHERE user_id=%s
-                """, (uid,))
-                
-                recent = query("""
-                    SELECT * FROM transactions WHERE user_id=%s
-                    ORDER BY created_at DESC LIMIT 6
-                """, (uid,))
-                
-                unread_row = query_one(
-                    "SELECT COUNT(*) AS c FROM alerts WHERE user_id=%s AND is_read=0", (uid,)
-                )
-                unread = unread_row["c"] if unread_row else 0
-            except Exception as db_e:
-                print(f"❌ DB Fetch Error: {db_e}")
-                return render_demo_dashboard()
-        else:
-            return render_demo_dashboard()
-
-        # If data exists, render normally
-        if recent:
-            return render_template(
-                "dashboard.html",
-                stats=stats,
-                recent=recent,
-                alerts_count=unread,
-                fmt_inr=fmt_inr
-            )
-        else:
-            return render_demo_dashboard()
-
-    except Exception as e:
-        print("🔥 DASHBOARD GLOBAL ERROR:", e)
-        return render_demo_dashboard()
-
-def render_demo_dashboard():
-    """Helper to render demo UI when DB is unavailable or empty"""
-    stats = {
-        "total": 5,
-        "frauds": 1,
-        "legit": 4,
-        "total_amount": 25000
-    }
-    recent = [{
-        "id": 1,
-        "type": "TRANSFER",
-        "amount_inr": 5000,
-        "prediction": "Fraud",
-        "risk_score": 82,
-        "created_at": "2026-01-01 10:00"
-    }]
-    return render_template(
-        "dashboard.html",
-        stats=stats,
-        recent=recent,
-        alerts_count=1,
-        fmt_inr=fmt_inr,
-        demo_mode=True
+    uid   = session["user_id"]
+    # Improved stats query to handle case-insensitivity and empty results
+    stats = query_one("""
+        SELECT COUNT(*) AS total, 
+               SUM(CASE WHEN LOWER(prediction)='fraud' THEN 1 ELSE 0 END) AS frauds,
+               SUM(CASE WHEN LOWER(prediction)='legitimate' THEN 1 ELSE 0 END) AS legit,
+               COALESCE(SUM(amount_inr),0) AS total_amount
+        FROM transactions WHERE user_id=%s
+    """, (uid,))
+    
+    recent = query("""
+        SELECT * FROM transactions WHERE user_id=%s
+        ORDER BY created_at DESC LIMIT 6
+    """, (uid,))
+    
+    unread_row = query_one(
+        "SELECT COUNT(*) AS c FROM alerts WHERE user_id=%s AND is_read=0", (uid,)
     )
+    unread = unread_row["c"] if unread_row else 0
+    
+    return render_template("dashboard.html",
+                           stats=stats, recent=recent,
+                           alerts_count=unread, fmt_inr=fmt_inr)
 
-
-# ================= PREDICT =================
 
 @predict_bp.route("/predict", methods=["GET", "POST"])
 @login_required
 def predict():
     if request.method == "POST":
-
         errors = validate_transaction_input(request.form)
         if errors:
             for e in errors: flash(e, "danger")
@@ -162,7 +106,7 @@ def predict():
             new_orig = float(request.form["newbalanceOrig"])
             old_dest = float(request.form["oldbalanceDest"])
             new_dest = float(request.form["newbalanceDest"])
-        except:
+        except (KeyError, ValueError):
             flash("Invalid input detected.", "danger")
             return redirect(url_for("predict.predict"))
 
@@ -170,46 +114,44 @@ def predict():
         features = np.array([[step, t_type, amount, old_orig, new_orig, old_dest, new_dest]])
 
         if model:
+            pred_raw   = model.predict(features)[0]
             try:
-                pred_raw   = model.predict(features)[0]
-                result     = "Fraud" if pred_raw == 1 else "Legitimate"
-                confidence = 90.0
-            except:
-                result     = "Fraud" if risk > 60 else "Legitimate"
-                confidence = float(risk)
+                prob       = model.predict_proba(features)[0]
+                confidence = round(float(max(prob)) * 100, 1)
+            except Exception:
+                confidence = 85.0
+            result = "Fraud" if pred_raw == 1 else "Legitimate"
         else:
             result     = "Fraud" if risk > 60 else "Legitimate"
-            confidence = float(risk)
+            confidence = float(risk) if risk > 60 else float(100 - risk)
 
-        # 🔥 AUTO SAVE + ALERT TRIGGER
-        try:
-            if AUTO_DB:
-                execute("""INSERT INTO transactions
-                (user_id,step,type,amount_inr,old_balance_orig,new_balance_orig,
-                 old_balance_dest,new_balance_dest,prediction,confidence,risk_score,ip_address)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (session.get("user_id", 1), step, TXN_TYPES.get(t_type,str(t_type)),
-                      amount, old_orig, new_orig, old_dest, new_dest,
-                      result, confidence, risk, request.remote_addr))
+        if result == "Fraud":
+            risk = max(risk, 65)
 
-                # 🔥 AUTO ALERT
-                if result == "Fraud":
-                    execute("INSERT INTO alerts (user_id,message) VALUES (%s,%s)",
-                            (session.get("user_id", 1), f"Fraud detected {fmt_inr(amount)}"))
+        txn_id = execute("""
+            INSERT INTO transactions
+              (user_id,step,type,amount_inr,old_balance_orig,new_balance_orig,
+               old_balance_dest,new_balance_dest,prediction,confidence,risk_score,ip_address)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (session["user_id"], step, TXN_TYPES.get(t_type,str(t_type)),
+              amount, old_orig, new_orig, old_dest, new_dest,
+              result, confidence, risk, request.remote_addr))
 
-                print("✅ SAVED + ALERT")
-            else:
-                print("⚠️ DEMO MODE → NOT SAVED")
+        if result == "Fraud" or risk > 70:
+            execute("""
+                INSERT INTO alerts (user_id,transaction_id,alert_type,message)
+                VALUES (%s,%s,%s,%s)
+            """, (session["user_id"], txn_id, "FRAUD_ALERT",
+                  f"⚠️ High-risk transaction: {fmt_inr(amount)} via "
+                  f"{TXN_TYPES.get(t_type,'?')} — Risk: {risk}/100"))
 
-        except Exception as e:
-            print("❌ SAVE ERROR:", e)
+        audit(session["user_id"], "PREDICT",
+              f"Txn #{txn_id} = {result} (risk {risk})")
 
         return render_template("result.html",
-                               result=result,
-                               confidence=confidence,
-                               risk=risk,
-                               amount=fmt_inr(amount),
+                               result=result, confidence=confidence,
+                               risk=risk, amount=fmt_inr(amount),
                                txn_type=TXN_TYPES.get(t_type, str(t_type)),
-                               txn_id=1)
+                               txn_id=txn_id)
 
     return render_template("predict.html", txn_types=TXN_TYPES)

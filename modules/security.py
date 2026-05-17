@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add the project root directory to the python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 """
 modules/security.py
 ────────────────────
@@ -53,14 +59,18 @@ def record_failed_login(username):
         return  # Don't reveal user existence
     attempts = (user["login_attempts"] or 0) + 1
     lock_until = None
+    
     cfg = query_one("SELECT setting_value FROM system_settings WHERE setting_key='max_login_attempts'")
     max_att = int(cfg["setting_value"]) if cfg else 5
+    
     cfg2 = query_one("SELECT setting_value FROM system_settings WHERE setting_key='lockout_minutes'")
     lock_min = int(cfg2["setting_value"]) if cfg2 else 15
+    
     if attempts >= max_att:
         lock_until = datetime.now() + timedelta(minutes=lock_min)
         audit(user["id"], "ACCOUNT_LOCKED",
               f"Locked after {attempts} failed attempts from {request.remote_addr}")
+              
     execute(
         "UPDATE users SET login_attempts=%s, locked_until=%s WHERE id=%s",
         (attempts, lock_until, user["id"])

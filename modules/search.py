@@ -1,119 +1,124 @@
-"""modules/search.py"""
+import sys
+import os
+
+# Add the project root directory to the python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+"""modules/search.py — Advanced Search & Filter"""
 from flask import Blueprint, render_template, request, session, jsonify
 from modules.security import login_required
 from modules.db import query, query_one
 
 search_bp = Blueprint("search", __name__)
-TXN_TYPES = ["CASH_IN","CASH_OUT","DEBIT","PAYMENT","TRANSFER"]
+TXN_TYPES = ["CASH_IN", "CASH_OUT", "DEBIT", "PAYMENT", "TRANSFER"]
 
 @search_bp.route("/search")
 @login_required
 def search():
-    return render_template("search.html", txn_types=TXN_TYPES, is_admin=session.get("role")=="admin")
-
+    return render_template("search.html", 
+                           txn_types=TXN_TYPES, 
+                           is_admin=session.get("role") == "admin")
 
 @search_bp.route("/search/results")
 @login_required
 def search_results():
+    uid      = session["user_id"]
+    is_admin = session.get("role") == "admin"
+    page     = max(int(request.args.get("page", 1)), 1)
+    per_page = 25
+    offset   = (page - 1) * per_page
+    
+    conditions = []
+    args = []
 
-    # 🔥 ADD: SAFE WRAPPER (DO NOT REMOVE ORIGINAL CODE)
-    try:
-        uid      = session["user_id"]
-        is_admin = session.get("role") == "admin"
-        page     = max(int(request.args.get("page",1)),1)
-        per_page = 25
-        offset   = (page-1)*per_page
+    # Access control: users can only search their own data
+    if not is_admin:
+        conditions.append("t.user_id = %s")
+        args.append(uid)
 
-        conditions=[]; args=[]
+    # General keyword search
+    kw = request.args.get("q", "").strip()
+    if kw:
+        conditions.append("(t.type LIKE %s OR t.prediction LIKE %s)")
+        args.extend([f"%{kw}%", f"%{kw}%"])
 
-        if not is_admin:
-            conditions.append("t.user_id=%s"); args.append(uid)
+    # Specific filters
+    tt = request.args.get("type", "")
+    if tt in TXN_TYPES:
+        conditions.append("t.type = %s")
+        args.append(tt)
 
-        kw=request.args.get("q","").strip()
-        if kw:
-            conditions.append("(t.type LIKE %s OR t.prediction LIKE %s)")
-            args+=[f"%{kw}%",f"%{kw}%"]
+    pred = request.args.get("prediction", "")
+    if pred in ("Fraud", "Legitimate"):
+        conditions.append("t.prediction = %s")
+        args.append(pred)
 
-        tt=request.args.get("type","")
-        if tt in TXN_TYPES:
-            conditions.append("t.type=%s"); args.append(tt)
+    # Numeric filters
+    filters = [
+        ("amt_min", "t.amount_inr >="),
+        ("amt_max", "t.amount_inr <="),
+        ("risk_min", "t.risk_score >=")
+    ]
+    for field, col in filters:
+        try:
+            val = request.args.get(field, "").strip()
+            if val:
+                v = float(val)
+                conditions.append(f"{col} %s")
+                args.append(v)
+        except (ValueError, TypeError):
+            pass
 
-        pred=request.args.get("prediction","")
-        if pred in ("Fraud","Legitimate"):
-            conditions.append("t.prediction=%s"); args.append(pred)
+    # Date filters
+    df = request.args.get("date_from", "")
+    dt = request.args.get("date_to", "")
+    if df:
+        conditions.append("DATE(t.created_at) >= %s")
+        args.append(df)
+    if dt:
+        conditions.append("DATE(t.created_at) <= %s")
+        args.append(dt)
 
-        for field,col in [("amt_min","t.amount_inr >="),("amt_max","t.amount_inr <="),("risk_min","t.risk_score >=")]:
-            try:
-                v=float(request.args.get(field,0) or 0)
-                if v>0:
-                    conditions.append(f"{col} %s"); args.append(v)
-            except:
-                pass
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-        df=request.args.get("date_from","")
-        dt=request.args.get("date_to","")
+    # Get total count
+    total_sql = f"SELECT COUNT(*) AS c FROM transactions t {where_clause}"
+    total_res = query_one(total_sql, tuple(args))
+    total = total_res["c"] if total_res else 0
 
-        if df:
-            conditions.append("DATE(t.created_at)>=%s"); args.append(df)
-        if dt:
-            conditions.append("DATE(t.created_at)<=%s"); args.append(dt)
+    # Get Paginated Results
+    if is_admin:
+        sql = f"""
+            SELECT t.*, u.username 
+            FROM transactions t 
+            JOIN users u ON t.user_id = u.id 
+            {where_clause} 
+            ORDER BY t.created_at DESC 
+            LIMIT %s OFFSET %s
+        """
+    else:
+        sql = f"""
+            SELECT t.* FROM transactions t 
+            {where_clause} 
+            ORDER BY t.created_at DESC 
+            LIMIT %s OFFSET %s
+        """
+    
+    # Execute query with limit/offset added to args
+    rows = query(sql, tuple(args + [per_page, offset]))
 
-        w=("WHERE "+" AND ".join(conditions)) if conditions else ""
+    def serialize(r):
+        d = dict(r)
+        for k, v in d.items():
+            if hasattr(v, "isoformat"): 
+                d[k] = str(v)[:16] # Format date
+            elif hasattr(v, "__float__"): 
+                d[k] = float(v)    # Format Decimal/Float
+        return d
 
-        total=query_one(f"SELECT COUNT(*) AS c FROM transactions t {w}",tuple(args))["c"]
-
-        if is_admin:
-            rows=query(f"""
-                SELECT t.*,u.username 
-                FROM transactions t 
-                JOIN users u ON t.user_id=u.id 
-                {w} 
-                ORDER BY t.created_at DESC 
-                LIMIT %s OFFSET %s
-            """,tuple(args)+(per_page,offset))
-        else:
-            rows=query(f"""
-                SELECT t.* 
-                FROM transactions t 
-                {w} 
-                ORDER BY t.created_at DESC 
-                LIMIT %s OFFSET %s
-            """,tuple(args)+(per_page,offset))
-
-        def ser(r):
-            d=dict(r)
-            for k,v in d.items():
-                if hasattr(v,"isoformat"):
-                    d[k]=str(v)[:16]
-                elif hasattr(v,"__float__"):
-                    d[k]=float(v)
-            return d
-
-        return jsonify({
-            "total":total,
-            "page":page,
-            "pages":max((total+per_page-1)//per_page,1),
-            "rows":[ser(r) for r in rows]
-        })
-
-    except Exception as e:
-        print("🔥 SEARCH ERROR:", e)
-
-        # 🔥 ADD: DEMO DATA (NO DB MODE)
-        demo_rows = [{
-            "id": 1,
-            "type": "TRANSFER",
-            "amount_inr": 5000,
-            "prediction": "Legitimate",
-            "risk_score": 10,
-            "created_at": "2026-01-01 10:00",
-            "username": "admin"
-        }]
-
-        return jsonify({
-            "total": 1,
-            "page": 1,
-            "pages": 1,
-            "rows": demo_rows,
-            "demo_mode": True
-        })
+    return jsonify({
+        "total": total,
+        "page": page,
+        "pages": max((total + per_page - 1) // per_page, 1),
+        "rows": [serialize(r) for r in rows]
+    })

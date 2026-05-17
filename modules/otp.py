@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add the project root directory to the python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 """modules/otp.py — 6-digit OTP 2FA"""
 import random, string
 from datetime import datetime, timedelta
@@ -13,13 +19,18 @@ def generate_otp():
 
 
 def create_otp_for_user(user_id, email, name):
+    # Mark old OTPs as used before generating a new one
     execute("UPDATE otp_tokens SET is_used=1 WHERE user_id=%s AND purpose='login'", (user_id,))
+    
     otp     = generate_otp()
     expires = datetime.now() + timedelta(minutes=5)
+    
     execute(
         "INSERT INTO otp_tokens (user_id,otp_code,purpose,expires_at) VALUES (%s,%s,'login',%s)",
         (user_id, otp, expires)
     )
+    
+    # In production, this would be an email. For this project, we print to the console.
     print(f"\n{'='*50}\n  OTP for {name} ({email}): {otp}\n  Valid 5 minutes.\n{'='*50}\n")
     return otp
 
@@ -32,6 +43,8 @@ def otp_verify():
     if request.method == "POST":
         entered = request.form.get("otp_code", "").strip()
         uid     = session["pending_user_id"]
+        
+        # Get the latest valid token
         token   = query_one("""
             SELECT * FROM otp_tokens
             WHERE user_id=%s AND purpose='login' AND is_used=0 AND expires_at>NOW()
@@ -40,21 +53,27 @@ def otp_verify():
 
         if token and token["otp_code"] == entered:
             execute("UPDATE otp_tokens SET is_used=1 WHERE id=%s", (token["id"],))
+            
+            # Successful 2FA: Promote pending session to active session
             rotate_session()
             session["user_id"]   = session.pop("pending_user_id")
             session["username"]  = session.pop("pending_username")
             session["role"]      = session.pop("pending_role")
             session["full_name"] = session.pop("pending_full_name")
             session.permanent    = True
+            
             execute("UPDATE users SET last_login=%s WHERE id=%s", (datetime.now(), session["user_id"]))
             audit(session["user_id"], "LOGIN_OTP", "Passed OTP verification")
+            
             flash(f"Welcome, {session['full_name']}! \U0001f64f", "success")
             return redirect(
                 url_for("admin.admin_dashboard") if session["role"] == "admin"
                 else url_for("predict.dashboard")
             )
+            
         flash("Invalid or expired OTP.", "danger")
 
+    # Handle resend request
     if request.args.get("resend"):
         uid  = session.get("pending_user_id")
         user = query_one("SELECT * FROM users WHERE id=%s", (uid,))
